@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.title("HR Insight Copilot")
+st.title("HR Insight AI")
 
 st.write("Kérdezz a HR-adatokról!")
 
