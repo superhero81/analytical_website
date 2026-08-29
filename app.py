@@ -85,15 +85,20 @@ hungarian_months = {
     12: "december"
 }
 
-selected_month = st.sidebar.selectbox(
-    "Vizsgálati hónap",
-    options=available_months,
-    index=0,
-    format_func=lambda period: (
-        f"{period.year}. "
-        f"{hungarian_months[period.month]}"
+st.title("HR Insight AI")
+
+date_column, empty_column = st.columns([1, 2])
+
+with date_column:
+    selected_month = st.selectbox(
+        "Vizsgálati hónap",
+        options=available_months,
+        index=0,
+        format_func=lambda period: (
+            f"{period.year}. "
+            f"{hungarian_months[period.month]}"
+        )
     )
-)
 
 reference_date = selected_month.end_time.normalize()
 
