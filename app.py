@@ -87,6 +87,7 @@ hungarian_months = {
 }
 
 st.title("HR Insight AI")
+reference_caption = st.empty()
 
 date_column, empty_column = st.columns([1, 2])
 
@@ -103,14 +104,14 @@ with date_column:
 
 reference_date = selected_month.end_time.normalize()
 
-st.title("HR Insight AI")
-st.caption(
+
+reference_caption.caption(
     "Referencia-időpont: "
     f"{reference_date.date()}"
 )
 
 st.write(
-    "A KPI-k és elemzések a bal oldalon kiválasztott "
+    "A KPI-k és elemzések a kiválasztott "
     "vizsgálati hónaphoz igazodnak."
 )
 
