@@ -52,6 +52,10 @@ st.markdown(
     }
 
 @media (max-width: 768px) {
+    div[data-testid="stMainBlockContainer"] {
+        padding-top: 9rem !important;
+    }
+
     div[data-testid="stHorizontalBlock"]:has(
         div[class*="st-key-kpi_"]
     ) {
@@ -87,8 +91,50 @@ st.markdown(
     div[class*="st-key-kpi_"] button em {
         font-size: 0.68rem;
     }
-    .st-key-reference_month {
-    margin-bottom: -24px;
+
+    div[data-testid="stElementContainer"]:has(
+        .st-key-reference_month
+    ):has(
+        .st-key-department_filter
+    ) {
+        display: contents !important;
+    }
+
+    div[data-testid="stHorizontalBlock"]:has(
+        .st-key-reference_month
+    ):has(
+        .st-key-department_filter
+    ) {
+        position: fixed !important;
+        top: 3.25rem !important;
+        left: 1rem !important;
+        right: 1rem !important;
+        width: auto !important;
+        z-index: 999999 !important;
+        flex-wrap: nowrap;
+        gap: 8px;
+        padding: 6px 8px 8px 8px !important;
+        background-color: white !important;
+        border-bottom: 1px solid #d9dee7 !important;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.10) !important;
+    }
+
+    div[data-testid="stHorizontalBlock"]:has(
+        .st-key-reference_month
+    ):has(
+        .st-key-department_filter
+    ) > div[data-testid="stColumn"] {
+        flex: 0 0 calc(50% - 4px) !important;
+        width: calc(50% - 4px) !important;
+        min-width: 0 !important;
+    }
+
+    div[data-testid="stHorizontalBlock"]:has(
+        .st-key-reference_month
+    ):has(
+        .st-key-department_filter
+    ) label p {
+        font-size: 0.72rem;
     }
 }
 
@@ -175,7 +221,8 @@ hungarian_months = {
 st.title("HR Insight AI")
 reference_caption = st.empty()
 
-date_column, empty_column = st.columns([1, 2])
+
+date_column, department_column = st.columns(2)
 
 with date_column:
     selected_month = st.selectbox(
@@ -188,6 +235,43 @@ with date_column:
         ),
         key="reference_month"
     )
+
+with department_column:
+    selected_department = st.selectbox(
+        "Szervezeti terület",
+        options=[
+            "Összes",
+            *sorted(
+                employees[
+                    "DepartmentType"
+                ].dropna().unique()
+            )
+        ],
+        index=0,
+        key="department_filter"
+    )
+
+if selected_department != "Összes":
+    employees = employees[
+        employees["DepartmentType"]
+        == selected_department
+    ].copy()
+
+    selected_employee_ids = set(
+        employees["EmpID"]
+    )
+
+    engagement = engagement[
+        engagement["EmpID"].isin(
+            selected_employee_ids
+        )
+    ].copy()
+
+    training = training[
+        training["EmpID"].isin(
+            selected_employee_ids
+        )
+    ].copy()
 
 reference_date = selected_month.end_time.normalize()
 
