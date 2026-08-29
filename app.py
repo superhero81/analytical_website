@@ -314,18 +314,17 @@ else:
         else 0
     )
 
+# Havi képzési részvétel
+training_month_start = (
+    selected_month.start_time.normalize()
+)
 
-# Gördülő 6 havi képzési részvétel
-training_period_start = (
-    selected_month - 5
-).start_time.normalize()
-
-training_6m = training[
-    (training["TrainingDate"] >= training_period_start)
+training_month = training[
+    (training["TrainingDate"] >= training_month_start)
     & (training["TrainingDate"] <= reference_date)
 ]
 
-trained_employees = training_6m[
+trained_employees = training_month[
     "EmpID"
 ].nunique()
 
@@ -335,7 +334,7 @@ eligible_for_training = (
         employees["ExitDate"].isna()
         | (
             employees["ExitDate"]
-            >= training_period_start
+            >= training_month_start
         )
     )
 ).sum()
@@ -349,12 +348,12 @@ training_participation_rate = (
 )
 
 completed_trainings = (
-    training_6m["CompletionStatus"]
+    training_month["CompletionStatus"]
     == "Completed"
 ).sum()
 
 incomplete_trainings = (
-    training_6m["CompletionStatus"]
+    training_month["CompletionStatus"]
     == "Incomplete"
 ).sum()
 
@@ -369,7 +368,6 @@ training_completion_rate = (
     if started_trainings > 0
     else 0
 )
-
 
 # KPI-kártyák
 st.subheader("Fő HR-mutatók")
@@ -470,7 +468,7 @@ show_kpi_card(
     "training",
     "Képzési részvétel",
     training_card_value,
-    f"Teljesítés: {training_completion_rate:.1f}%"
+    "Legalább 1 képzés / hónap"
 )
 
 
@@ -485,8 +483,8 @@ if st.session_state.selected_kpi == "headcount":
 
     headcount_trend = pd.DataFrame({
         "Hónap": [
-            month.end_time.normalize()
-            for month in trend_months
+            str(month)
+            for month in trend_months      
         ],
         "Állományi létszám": [
             headcount_on_date(month.end_time.normalize())
@@ -499,9 +497,12 @@ if st.session_state.selected_kpi == "headcount":
         .mark_line(point=True)
         .encode(
             x=alt.X(
-                "Hónap:T",
+                "Hónap:O",
                 title="Hónap",
-                axis=alt.Axis(format="%Y-%m")
+                axis=alt.Axis(
+                    labelAngle=-45,
+                    labelOverlap="greedy"
+                )
             ),
             y=alt.Y(
                 "Állományi létszám:Q",
@@ -509,7 +510,10 @@ if st.session_state.selected_kpi == "headcount":
                 scale=alt.Scale(zero=True)
             ),
             tooltip=[
-                alt.Tooltip("Hónap:T", title="Hónap", format="%Y. %B"),
+                alt.Tooltip(
+                    "Hónap:N",
+                    title="Hónap"
+                ),
                 alt.Tooltip(
                     "Állományi létszám:Q",
                     title="Állományi létszám"
@@ -541,7 +545,7 @@ elif st.session_state.selected_kpi == "hires":
 
     hires_trend = pd.DataFrame({
         "Hónap": [
-            month.end_time.normalize()
+            str(month)
             for month in hires_trend_months
         ],
         "Belépők száma": monthly_hires.values
@@ -556,19 +560,21 @@ elif st.session_state.selected_kpi == "hires":
         )
         .encode(
             x=alt.X(
-                "Hónap:T",
+                "Hónap:O",
                 title="Hónap",
-                axis=alt.Axis(format="%Y-%m")
-            ),
+                axis=alt.Axis(
+                    labelAngle=-45,
+                    labelOverlap="greedy"
+    )
+),
             y=alt.Y(
                 "Belépők száma:Q",
                 title="Belépők száma"
             ),
             tooltip=[
                 alt.Tooltip(
-                    "Hónap:T",
-                    title="Hónap",
-                    format="%Y-%m"
+                    "Hónap:N",
+                    title="Hónap"
                 ),
                 alt.Tooltip(
                     "Belépők száma:Q",
@@ -642,12 +648,12 @@ elif st.session_state.selected_kpi == "turnover":
 
         turnover_records.extend([
             {
-                "Hónap": month_end,
+                "Hónap": str(month),
                 "Mutató": "Teljes fluktuáció",
                 "Fluktuáció": monthly_turnover
             },
             {
-                "Hónap": month_end,
+                "Hónap": str(month),
                 "Mutató": "Önkéntes fluktuáció",
                 "Fluktuáció": monthly_voluntary_turnover
             }
@@ -662,9 +668,12 @@ elif st.session_state.selected_kpi == "turnover":
         .mark_line(point=True)
         .encode(
             x=alt.X(
-                "Hónap:T",
+                "Hónap:O",
                 title="Hónap",
-                axis=alt.Axis(format="%Y-%m")
+                axis=alt.Axis(
+                    labelAngle=-45,
+                    labelOverlap="greedy"
+                ),
             ),
             y=alt.Y(
                 "Fluktuáció:Q",
@@ -691,9 +700,8 @@ elif st.session_state.selected_kpi == "turnover":
             ),
             tooltip=[
                 alt.Tooltip(
-                    "Hónap:T",
-                    title="Hónap",
-                    format="%Y-%m"
+                    "Hónap:N",
+                    title="Hónap"
                 ),
                 alt.Tooltip(
                     "Mutató:N",
@@ -902,3 +910,159 @@ elif st.session_state.selected_kpi == "engagement":
             "A diagram nagyított, rögzített "
             "50–100 pontos skálát használ."
         )
+
+elif st.session_state.selected_kpi == "training":
+    st.subheader(
+        "Képzési részvétel és teljesítés"
+    )
+
+    training_trend_months = pd.period_range(
+        end=selected_month,
+        periods=12,
+        freq="M"
+    )
+
+    training_records = []
+
+    for month in training_trend_months:
+        month_start = month.start_time.normalize()
+        month_end = month.end_time.normalize()
+
+        training_window = training[
+            (training["TrainingDate"] >= month_start)
+            & (training["TrainingDate"] <= month_end)
+        ]
+
+        trained_in_window = training_window[
+            "EmpID"
+        ].nunique()
+
+        eligible_in_window = (
+            (employees["StartDate"] <= month_end)
+            & (
+                employees["ExitDate"].isna()
+                | (
+                    employees["ExitDate"]
+                    >= month_start
+                )
+            )
+        ).sum()
+
+        participation_in_window = (
+            trained_in_window
+            / eligible_in_window
+            * 100
+            if eligible_in_window > 0
+            else 0
+        )
+
+        completed_in_window = (
+            training_window["CompletionStatus"]
+            == "Completed"
+        ).sum()
+
+        incomplete_in_window = (
+            training_window["CompletionStatus"]
+            == "Incomplete"
+        ).sum()
+
+        started_in_window = (
+            completed_in_window
+            + incomplete_in_window
+        )
+
+        completion_in_window = (
+            completed_in_window
+            / started_in_window
+            * 100
+            if started_in_window > 0
+            else 0
+        )
+
+        training_records.extend([
+            {
+                "Hónap": str(month),
+                "Mutató": "Részvételi arány",
+                "Érték": participation_in_window
+            },
+            {
+                "Hónap": str(month),
+                "Mutató": "Teljesítési arány",
+                "Érték": completion_in_window
+            }
+        ])
+
+    training_trend = pd.DataFrame(
+        training_records
+    )
+
+    training_chart = (
+        alt.Chart(training_trend)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(
+                "Hónap:O",
+                title="Hónap",
+                axis=alt.Axis(
+                    labelAngle=-45,
+                    labelOverlap="greedy"
+                )
+            ),
+            y=alt.Y(
+                "Érték:Q",
+                title="Arány (%)",
+                scale=alt.Scale(
+                    domain=[0, 100]
+                )
+            ),
+            color=alt.Color(
+                "Mutató:N",
+                title=None,
+                scale=alt.Scale(
+                    domain=[
+                        "Részvételi arány",
+                        "Teljesítési arány"
+                    ],
+                    range=[
+                        "#3568b8",
+                        "#64a78f"
+                    ]
+                ),
+                legend=alt.Legend(
+                    orient="bottom",
+                    direction="vertical",
+                    labelLimit=300
+                )
+            ),
+            tooltip=[
+                alt.Tooltip(
+                    "Hónap:N",
+                    title="Hónap"
+                ),
+                alt.Tooltip(
+                    "Mutató:N",
+                    title="Mutató"
+                ),
+                alt.Tooltip(
+                    "Érték:Q",
+                    title="Érték",
+                    format=".1f"
+                )
+            ]
+        )
+        .properties(height=350)
+    )
+
+    st.altair_chart(
+        training_chart,
+        width="stretch"
+    )
+
+    st.caption(
+        "**Részvétel:** legalább egy képzéssel "
+        "rendelkező munkavállalók aránya az "
+        "adott hónapban.  \n"
+        "**Teljesítés:** a befejezett képzések "
+        "aránya a befejezett és nem teljesített "
+        "képzések között."
+    )
