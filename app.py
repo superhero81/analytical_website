@@ -11,6 +11,92 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown(
+    """
+    <style>
+    div[class*="st-key-kpi_"] button {
+        min-height: 125px;
+        padding: 14px 10px;
+        border-radius: 12px;
+    }
+
+    div[class*="st-key-kpi_"] button p {
+        line-height: 1.25;
+    }
+
+    div[class*="st-key-kpi_"] button strong {
+        display: inline-block;
+        margin: 7px 0;
+        font-size: 1.45rem;
+    }
+
+    div[class*="st-key-kpi_"] button em {
+        font-size: 0.78rem;
+        font-style: normal;
+        color: #6b7280;
+    }
+
+    div[class*="st-key-kpi_"] button[kind="primary"] {
+        background-color: #3568b8;
+        border-color: #3568b8;
+        color: white;
+    }
+
+    div[class*="st-key-kpi_"] button[kind="primary"] em {
+        color: #e8eef9;
+    }
+
+    div[class*="st-key-kpi_"] button[kind="primary"]:hover {
+        background-color: #2d5a9f;
+        border-color: #2d5a9f;
+    }
+
+@media (max-width: 768px) {
+    div[data-testid="stHorizontalBlock"]:has(
+        div[class*="st-key-kpi_"]
+    ) {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    div[data-testid="stHorizontalBlock"]:has(
+        div[class*="st-key-kpi_"]
+    ) > div[data-testid="stColumn"] {
+        flex: 0 0 calc(50% - 6px) !important;
+        width: calc(50% - 6px) !important;
+        min-width: 0 !important;
+    }
+
+    div[data-testid="stHorizontalBlock"]:has(
+        div[class*="st-key-kpi_"]
+    ) > div[data-testid="stColumn"]:nth-child(5) {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    div[class*="st-key-kpi_"] button {
+        min-height: 105px;
+        padding: 8px 5px;
+    }
+
+    div[class*="st-key-kpi_"] button strong {
+        margin: 5px 0;
+        font-size: 1.25rem;
+    }
+
+    div[class*="st-key-kpi_"] button em {
+        font-size: 0.68rem;
+    }
+    .st-key-reference_month {
+    margin-bottom: -24px;
+    }
+}
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 DATA_FOLDER = Path("data/processed")
 
 
@@ -99,7 +185,8 @@ with date_column:
         format_func=lambda period: (
             f"{period.year}. "
             f"{hungarian_months[period.month]}"
-        )
+        ),
+        key="reference_month"
     )
 
 reference_date = selected_month.end_time.normalize()
@@ -110,7 +197,7 @@ reference_caption.caption(
     f"{reference_date.date()}"
 )
 
-st.write(
+st.caption(
     "A KPI-k és elemzések a kiválasztott "
     "vizsgálati hónaphoz igazodnak."
 )
@@ -286,63 +373,102 @@ training_completion_rate = (
 
 # KPI-kártyák
 st.subheader("Fő HR-mutatók")
+if "selected_kpi" not in st.session_state:
+    st.session_state.selected_kpi = "headcount"
+
+def show_kpi_card(
+    column,
+    key,
+    title,
+    value,
+    detail
+):
+    is_selected = st.session_state.selected_kpi == key
+
+    card_text = (
+        f"{title}\n\n"
+        f"**{value}**\n\n"
+        f"_{detail}_"
+    )
+
+    if column.button(
+        card_text,
+        key=f"kpi_{key}",
+        type="primary" if is_selected else "secondary",
+        use_container_width=True
+    ):
+        st.session_state.selected_kpi = key
+        st.rerun()
+
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
-with col1:
-    st.metric(
-        "Állományi létszám",
-        f"{headcount_current:,}".replace(",", " "),
-        delta=f"{headcount_change:+} fő / 12 hó"
-    )
-    st.caption(
-        f"Állapot: {reference_date.date()}"
-    )
+headcount_card_value = (
+    f"{headcount_current:,}".replace(",", " ")
+)
 
-with col2:
-    st.metric(
-        "Belépők",
-        f"{hires_12m} fő"
-    )
-    st.caption("Gördülő 12 hónap")
+hires_card_value = f"{hires_12m} fő"
 
-with col3:
-    st.metric(
-        "Fluktuáció",
-        f"{turnover_rate:.1f}%"
-    )
-    st.caption(
-        "Gördülő 12 hónap · "
-        f"önkéntes: {voluntary_turnover_rate:.1f}%"
-    )
+turnover_card_value = f"{turnover_rate:.1f}%"
 
-with col4:
-    if engagement_value is None:
-        st.metric("Engagement", "Nincs adat")
-        st.caption(
-            "A kiválasztott időpontig nincs felmérés"
-        )
-    else:
-        st.metric(
-            "Engagement",
-            f"{engagement_value:.2f} / 5"
-        )
-        st.caption(
+if engagement_value is None:
+    engagement_card_value = "Nincs adat"
+else:
+    engagement_card_value = f"{engagement_value:.2f} / 5"
+
+training_card_value = (
+    f"{training_participation_rate:.1f}%"
+)
+
+show_kpi_card(
+    col1,
+    "headcount",
+    "Állományi létszám",
+    headcount_card_value,
+    f"{headcount_change:+} fő / 12 hó"
+)
+
+show_kpi_card(
+    col2,
+    "hires",
+    "Belépők",
+    hires_card_value,
+    "Gördülő 12 hónap"
+)
+
+show_kpi_card(
+    col3,
+    "turnover",
+    "Fluktuáció",
+    turnover_card_value,
+    f"Önkéntes: {voluntary_turnover_rate:.1f}%"
+)
+
+show_kpi_card(
+    col4,
+    "engagement",
+    "Engagement",
+    engagement_card_value,
+    (
+        "Nincs korábbi felmérés"
+        if engagement_value is None
+        else (
             f"{engagement_wave} · "
-            f"n={engagement_respondents} · "
             f"válaszadás: "
             f"{engagement_response_rate:.1f}%"
         )
+    )
+)
 
-with col5:
-    st.metric(
-        "Képzési részvétel",
-        f"{training_participation_rate:.1f}%"
-    )
-    st.caption(
-        "Gördülő 6 hónap · "
-        f"teljesítés: {training_completion_rate:.1f}%"
-    )
+show_kpi_card(
+    col5,
+    "training",
+    "Képzési részvétel",
+    training_card_value,
+    f"Teljesítés: {training_completion_rate:.1f}%"
+)
+
+
 
 st.subheader("Állományi létszám alakulása")
 
