@@ -410,11 +410,16 @@ headcount_card_value = (
 hires_card_value = f"{hires_12m} fő"
 
 turnover_card_value = f"{turnover_rate:.1f}%"
-
 if engagement_value is None:
     engagement_card_value = "Nincs adat"
 else:
-    engagement_card_value = f"{engagement_value:.2f} / 5"
+    engagement_index_value = (
+        engagement_value - 1
+    ) * 25
+
+    engagement_card_value = (
+        f"{engagement_index_value:.1f} / 100"
+    )
 
 training_card_value = (
     f"{training_participation_rate:.1f}%"
@@ -469,50 +474,431 @@ show_kpi_card(
 )
 
 
+if st.session_state.selected_kpi == "headcount":
+    st.subheader("Állományi létszám alakulása")
 
-st.subheader("Állományi létszám alakulása")
-
-trend_months = pd.period_range(
-    end=selected_month,
-    periods=12,
-    freq="M"
-)
-
-headcount_trend = pd.DataFrame({
-    "Hónap": [
-        month.end_time.normalize()
-        for month in trend_months
-    ],
-    "Állományi létszám": [
-        headcount_on_date(month.end_time.normalize())
-        for month in trend_months
-    ]
-})
-
-headcount_chart = (
-    alt.Chart(headcount_trend)
-    .mark_line(point=True)
-    .encode(
-        x=alt.X(
-            "Hónap:T",
-            title="Hónap",
-            axis=alt.Axis(format="%Y-%m")
-        ),
-        y=alt.Y(
-            "Állományi létszám:Q",
-            title="Létszám",
-            scale=alt.Scale(zero=False)
-        ),
-        tooltip=[
-            alt.Tooltip("Hónap:T", title="Hónap", format="%Y. %B"),
-            alt.Tooltip(
-                "Állományi létszám:Q",
-                title="Állományi létszám"
-            )
-        ]
+    trend_months = pd.period_range(
+        end=selected_month,
+        periods=12,
+        freq="M"
     )
-    .properties(height=350)
-)
 
-st.altair_chart(headcount_chart, width="stretch")
+    headcount_trend = pd.DataFrame({
+        "Hónap": [
+            month.end_time.normalize()
+            for month in trend_months
+        ],
+        "Állományi létszám": [
+            headcount_on_date(month.end_time.normalize())
+            for month in trend_months
+        ]
+    })
 
+    headcount_chart = (
+        alt.Chart(headcount_trend)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(
+                "Hónap:T",
+                title="Hónap",
+                axis=alt.Axis(format="%Y-%m")
+            ),
+            y=alt.Y(
+                "Állományi létszám:Q",
+                title="Létszám",
+                scale=alt.Scale(zero=True)
+            ),
+            tooltip=[
+                alt.Tooltip("Hónap:T", title="Hónap", format="%Y. %B"),
+                alt.Tooltip(
+                    "Állományi létszám:Q",
+                    title="Állományi létszám"
+                )
+            ]
+        )
+        .properties(height=350)
+    )
+
+    st.altair_chart(headcount_chart, width="stretch")
+
+elif st.session_state.selected_kpi == "hires":
+    st.subheader("Belépők számának alakulása")
+
+    hires_trend_months = pd.period_range(
+        end=selected_month,
+        periods=12,
+        freq="M"
+    )
+
+    monthly_hires = (
+        employees.assign(
+            HireMonth=employees["StartDate"].dt.to_period("M")
+        )
+        .groupby("HireMonth")
+        .size()
+        .reindex(hires_trend_months, fill_value=0)
+    )
+
+    hires_trend = pd.DataFrame({
+        "Hónap": [
+            month.end_time.normalize()
+            for month in hires_trend_months
+        ],
+        "Belépők száma": monthly_hires.values
+    })
+
+    hires_chart = (
+        alt.Chart(hires_trend)
+        .mark_bar(
+            color="#3568b8",
+            cornerRadiusTopLeft=4,
+            cornerRadiusTopRight=4
+        )
+        .encode(
+            x=alt.X(
+                "Hónap:T",
+                title="Hónap",
+                axis=alt.Axis(format="%Y-%m")
+            ),
+            y=alt.Y(
+                "Belépők száma:Q",
+                title="Belépők száma"
+            ),
+            tooltip=[
+                alt.Tooltip(
+                    "Hónap:T",
+                    title="Hónap",
+                    format="%Y-%m"
+                ),
+                alt.Tooltip(
+                    "Belépők száma:Q",
+                    title="Belépők száma"
+                )
+            ]
+        )
+        .properties(height=350)
+    )
+
+    st.altair_chart(hires_chart, width="stretch")
+
+
+elif st.session_state.selected_kpi == "turnover":
+    st.subheader("Gördülő 12 havi fluktuáció")
+
+    turnover_trend_months = pd.period_range(
+        end=selected_month,
+        periods=12,
+        freq="M"
+    )
+
+    turnover_records = []
+
+    for month in turnover_trend_months:
+        month_end = month.end_time.normalize()
+        month_start = (
+            month_end - pd.DateOffset(years=1)
+        )
+
+        opening_headcount = headcount_on_date(
+            month_start
+        )
+        closing_headcount = headcount_on_date(
+            month_end
+        )
+
+        monthly_average_headcount = (
+            opening_headcount + closing_headcount
+        ) / 2
+
+        monthly_exit_mask = (
+            (employees["ExitDate"] > month_start)
+            & (employees["ExitDate"] <= month_end)
+        )
+
+        monthly_total_exits = monthly_exit_mask.sum()
+
+        monthly_voluntary_exits = (
+            monthly_exit_mask
+            & (
+                employees["EmployeeStatus"]
+                == "Voluntarily Terminated"
+            )
+        ).sum()
+
+        if monthly_average_headcount > 0:
+            monthly_turnover = (
+                monthly_total_exits
+                / monthly_average_headcount
+                * 100
+            )
+            monthly_voluntary_turnover = (
+                monthly_voluntary_exits
+                / monthly_average_headcount
+                * 100
+            )
+        else:
+            monthly_turnover = 0
+            monthly_voluntary_turnover = 0
+
+        turnover_records.extend([
+            {
+                "Hónap": month_end,
+                "Mutató": "Teljes fluktuáció",
+                "Fluktuáció": monthly_turnover
+            },
+            {
+                "Hónap": month_end,
+                "Mutató": "Önkéntes fluktuáció",
+                "Fluktuáció": monthly_voluntary_turnover
+            }
+        ])
+
+    turnover_trend = pd.DataFrame(
+        turnover_records
+    )
+
+    turnover_chart = (
+        alt.Chart(turnover_trend)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(
+                "Hónap:T",
+                title="Hónap",
+                axis=alt.Axis(format="%Y-%m")
+            ),
+            y=alt.Y(
+                "Fluktuáció:Q",
+                title="Fluktuáció (%)"
+            ),
+            color=alt.Color(
+                "Mutató:N",
+                title=None,
+                scale=alt.Scale(
+                    domain=[
+                        "Teljes fluktuáció",
+                        "Önkéntes fluktuáció"
+                    ],
+                    range=[
+                        "#3568b8",
+                        "#7ea6df"
+                    ]
+                ),
+                legend=alt.Legend(
+                    orient="bottom",
+                    direction="vertical",
+                    title=None
+                )
+            ),
+            tooltip=[
+                alt.Tooltip(
+                    "Hónap:T",
+                    title="Hónap",
+                    format="%Y-%m"
+                ),
+                alt.Tooltip(
+                    "Mutató:N",
+                    title="Mutató"
+                ),
+                alt.Tooltip(
+                    "Fluktuáció:Q",
+                    title="Érték",
+                    format=".1f"
+                )
+            ]
+        )
+        .properties(height=350)
+    )
+
+    st.altair_chart(
+        turnover_chart,
+        width="stretch"
+    )
+
+elif st.session_state.selected_kpi == "engagement":
+    st.subheader("Munkavállalói élmény alakulása")
+
+    available_engagement = engagement[
+        engagement["SurveyLaunchDate"]
+        <= reference_date
+    ].copy()
+
+    if available_engagement.empty:
+        st.info(
+            "A kiválasztott időpontig nincs "
+            "elérhető engagement-felmérés."
+        )
+    else:
+        engagement_summary = (
+            available_engagement
+            .groupby(
+                [
+                    "SurveyWaveID",
+                    "SurveyLaunchDate"
+                ],
+                as_index=False
+            )
+            .agg(
+                Engagement=(
+                    "EngagementScore",
+                    "mean"
+                ),
+                Elégedettség=(
+                    "SatisfactionScore",
+                    "mean"
+                ),
+                Munka_magánélet=(
+                    "WorkLifeBalanceScore",
+                    "mean"
+                ),
+                Válaszadók=(
+                    "EmpID",
+                    "nunique"
+                )
+            )
+            .sort_values("SurveyLaunchDate")
+            .tail(8)
+        )
+
+        engagement_summary[
+            "Válaszadási arány"
+        ] = engagement_summary.apply(
+            lambda row: (
+                row["Válaszadók"]
+                / headcount_on_date(
+                    row["SurveyLaunchDate"]
+                )
+                * 100
+            )
+            if headcount_on_date(
+                row["SurveyLaunchDate"]
+            ) > 0
+            else 0,
+            axis=1
+        )
+
+        engagement_summary[
+            "Engagement_index"
+        ] = (
+            engagement_summary["Engagement"] - 1
+        ) * 25
+
+        engagement_summary[
+            "Elégedettség_index"
+        ] = (
+            engagement_summary["Elégedettség"] - 1
+        ) * 25
+
+        engagement_summary[
+            "Munka_magánélet_index"
+        ] = (
+            engagement_summary["Munka_magánélet"] - 1
+        ) * 25
+
+
+        engagement_long = (
+            engagement_summary
+            .melt(
+                id_vars=[
+                    "SurveyWaveID",
+                    "SurveyLaunchDate",
+                    "Válaszadók",
+                    "Válaszadási arány"
+                ],
+                value_vars=[
+                    "Engagement_index",
+                    "Elégedettség_index",
+                    "Munka_magánélet_index"
+                ],
+                var_name="Mutató",
+                value_name="Index"
+            )
+        )
+
+        engagement_long["Mutató"] = (
+            engagement_long["Mutató"]
+            .replace({
+                "Engagement_index": "Engagement",
+                "Elégedettség_index": "Elégedettség",
+                "Munka_magánélet_index":
+                    "Munka–magánélet egyensúlya"
+            })
+        )
+
+        engagement_chart = (
+            alt.Chart(engagement_long)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X(
+                    "SurveyLaunchDate:T",
+                    title="Felmérési hullám",
+                    axis=alt.Axis(
+                        format="%Y-%m"
+                    )
+                ),
+                y=alt.Y(
+                    "Index:Q",
+                    title="Engagement index",
+                    scale=alt.Scale(
+                        domain=[50, 100]
+                    )
+                ),                color=alt.Color(
+                    "Mutató:N",
+                    title=None,
+                    scale=alt.Scale(
+                        domain=[
+                            "Engagement",
+                            "Elégedettség",
+                            "Munka–magánélet egyensúlya"
+                        ],
+                        range=[
+                            "#3568b8",
+                            "#64a78f",
+                            "#d68b55"
+                        ]
+                    ),
+                    legend=alt.Legend(
+                        orient="bottom",
+                        direction="vertical"
+                    )
+                ),
+                tooltip=[
+                    alt.Tooltip(
+                        "SurveyWaveID:N",
+                        title="Hullám"
+                    ),
+                    alt.Tooltip(
+                        "Mutató:N",
+                        title="Mutató"
+                    ),
+                    alt.Tooltip(
+                        "Index:Q",
+                        title="Index",
+                        format=".1f"
+                    ),
+
+                    alt.Tooltip(
+                        "Válaszadók:Q",
+                        title="Válaszadók"
+                    ),
+                    alt.Tooltip(
+                        "Válaszadási arány:Q",
+                        title="Válaszadási arány",
+                        format=".1f"
+                    )
+                ]
+            )
+            .properties(height=350)
+        )
+
+        st.altair_chart(
+            engagement_chart,
+            width="stretch"
+        )
+
+        st.caption(
+            "Az index 0–100 pontos értéket vehet fel, "
+            "átkódolása: 1 = 0, 2 = 25, 3 = 50, "
+            "4 = 75, 5 = 100. "
+            "A diagram nagyított, rögzített "
+            "50–100 pontos skálát használ."
+        )
