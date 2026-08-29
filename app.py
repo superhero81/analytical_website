@@ -494,7 +494,13 @@ if st.session_state.selected_kpi == "headcount":
 
     headcount_chart = (
         alt.Chart(headcount_trend)
-        .mark_line(point=True)
+        .mark_line(
+            point=alt.OverlayMarkDef(
+                size=110,
+                filled=True
+        ),
+        strokeWidth=2.5
+    )
         .encode(
             x=alt.X(
                 "Hónap:O",
@@ -665,7 +671,13 @@ elif st.session_state.selected_kpi == "turnover":
 
     turnover_chart = (
         alt.Chart(turnover_trend)
-        .mark_line(point=True)
+        .mark_line(
+            point=alt.OverlayMarkDef(
+                size=110,
+                filled=True
+            ),
+            strokeWidth=2.5
+        )
         .encode(
             x=alt.X(
                 "Hónap:O",
@@ -834,7 +846,13 @@ elif st.session_state.selected_kpi == "engagement":
 
         engagement_chart = (
             alt.Chart(engagement_long)
-            .mark_line(point=True)
+            .mark_line(
+                point=alt.OverlayMarkDef(
+                    size=110,
+                    filled=True
+                ),
+                strokeWidth=2.5
+            )
             .encode(
                 x=alt.X(
                     "SurveyLaunchDate:T",
@@ -998,7 +1016,13 @@ elif st.session_state.selected_kpi == "training":
 
     training_chart = (
         alt.Chart(training_trend)
-        .mark_line(point=True)
+        .mark_line(
+            point=alt.OverlayMarkDef(
+                size=110,
+                filled=True
+            ),
+            strokeWidth=2.5
+        )
         .encode(
             x=alt.X(
                 "Hónap:O",
