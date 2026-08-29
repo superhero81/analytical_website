@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import altair as alt
 
 
 st.set_page_config(
@@ -341,3 +342,50 @@ with col5:
         "Gördülő 6 hónap · "
         f"teljesítés: {training_completion_rate:.1f}%"
     )
+
+st.subheader("Állományi létszám alakulása")
+
+trend_months = pd.period_range(
+    end=selected_month,
+    periods=12,
+    freq="M"
+)
+
+headcount_trend = pd.DataFrame({
+    "Hónap": [
+        month.end_time.normalize()
+        for month in trend_months
+    ],
+    "Állományi létszám": [
+        headcount_on_date(month.end_time.normalize())
+        for month in trend_months
+    ]
+})
+
+headcount_chart = (
+    alt.Chart(headcount_trend)
+    .mark_line(point=True)
+    .encode(
+        x=alt.X(
+            "Hónap:T",
+            title="Hónap",
+            axis=alt.Axis(format="%Y-%m")
+        ),
+        y=alt.Y(
+            "Állományi létszám:Q",
+            title="Létszám",
+            scale=alt.Scale(zero=False)
+        ),
+        tooltip=[
+            alt.Tooltip("Hónap:T", title="Hónap", format="%Y. %B"),
+            alt.Tooltip(
+                "Állományi létszám:Q",
+                title="Állományi létszám"
+            )
+        ]
+    )
+    .properties(height=350)
+)
+
+st.altair_chart(headcount_chart, width="stretch")
+
