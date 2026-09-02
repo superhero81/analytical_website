@@ -1,0 +1,605 @@
+dataset:
+  id: "training"
+  name: "Képzési, teljesítési és képzési visszajelzési adatok"
+  file: "training_and_development_data_clean.csv"
+  description: >-
+    Szintetikus képzési rekordok a részvételről, teljesítésről, költségekről,
+    vizsgaeredményekről és képzésekkel kapcsolatos visszajelzésekről.
+  row_grain: "Egy sor egy munkavállaló egy képzési eseményhez tartozó rekordja."
+  primary_key: "TrainingRecordID"
+  row_count: 88103
+  covered_employee_count: 2995
+  official_cutoff_date: "2026-06-30"
+  temporal_coverage:
+    first_training_date: "2001-02-01"
+    last_training_date: "2026-06-30"
+  relationship:
+    target_dataset: "employee"
+    join_key: "EmpID"
+    cardinality: "many_to_one"
+
+privacy:
+  default_output_level: "aggregated"
+  minimum_group_size: 4
+  individual_rows_allowed_in_answers: false
+  rules:
+    - "Egyéni képzési, teljesítési vagy visszajelzési rekord nem jeleníthető meg."
+    - "Az 1–3 főt tartalmazó csoportok eredményét külön nem szabad közölni."
+    - >-
+      Konkrét oktatók aggregált értékelése a válaszadók számától függetlenül
+      megjeleníthető, de az elemszámot minden esetben közölni kell.
+      Egyéni válaszadók adatai nem jeleníthetők meg.
+
+fields:
+  - name: "TrainingRecordID"
+    label: "Képzési rekordazonosító"
+    group: "azonosítók"
+    data_type: "string"
+    nullable: false
+    unique: true
+    role: ["primary_key"]
+    format: "TRN-######"
+    description: "A képzési rekord egyedi, szintetikus technikai azonosítója."
+    documentation_status: "confirmed"
+    privacy_class: "pseudonymous_identifier"
+    allowed_uses: ["rekordok számlálása", "adatminőségi ellenőrzés"]
+    output_allowed: false
+
+  - name: "EmpID"
+    label: "Munkavállalói azonosító"
+    group: "azonosítók"
+    data_type: "integer"
+    nullable: false
+    role: ["foreign_key", "join_key"]
+    references: "employee.EmpID"
+    description: "A képzésben érintett munkavállaló szintetikus azonosítója."
+    documentation_status: "confirmed"
+    privacy_class: "pseudonymous_identifier"
+    allowed_uses: ["kapcsolás a munkavállalói törzshöz", "egyedi résztvevők számlálása", "ismételt képzések követése"]
+    output_allowed: false
+
+  - name: "TrainingDate"
+    label: "Képzés időpontja"
+    group: "képzési alapadatok"
+    data_type: "date"
+    format: "YYYY-MM-DD"
+    nullable: false
+    description: "A képzés kezdőnapja."
+    documentation_status: "confirmed"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["idősoros elemzés", "szűrés", "munkaviszonyon belüliség ellenőrzése"]
+    output_allowed: "aggregated_only"
+
+  - name: "TrainingProgramName"
+    label: "Képzési program"
+    group: "képzési alapadatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values:
+      - "Agile Delivery"
+      - "Business Compliance"
+      - "Communication Skills"
+      - "Customer Service"
+      - "Data & BI Skills"
+      - "Data Protection"
+      - "Employee Onboarding"
+      - "Equipment Operation"
+      - "Fire Safety"
+      - "IT Infrastructure"
+      - "Information Security"
+      - "Leadership Development"
+      - "Project Management"
+      - "Quality Management"
+      - "Sales Excellence"
+      - "Secure Coding"
+      - "Strategic Leadership"
+      - "Technical Skills"
+      - "Workplace Health & Safety"
+    description: "A képzési program neve."
+    hierarchy:
+      level: 2
+      parent_field: "TrainingCategory"
+    documentation_status: "confirmed"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["szűrés", "csoportosítás", "programok összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "TrainingPurpose"
+    label: "Képzés célja"
+    group: "képzési alapadatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Mandatory", "Employee Initiated", "Job Required"]
+    value_definitions:
+      Mandatory: "Kötelező képzés."
+      Employee Initiated: "A munkavállaló által kezdeményezett képzés."
+      Job Required: "A munkakör ellátásához kapcsolódó képzés, nem saját kezdeményezés."
+    documentation_status: "confirmed"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["szűrés", "csoportosítás", "képzési célok összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "TrainingCategory"
+    label: "Képzési kategória"
+    group: "képzési alapadatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Business Compliance", "Customer Skills", "Data Protection", "Health & Safety", "Information Security", "Leadership Development", "Onboarding", "Operational Excellence", "Professional Skills", "Technical Skills"]
+    description: "A képzés magasabb szintű tartalmi kategóriája."
+    hierarchy:
+      level: 1
+      child_field: "TrainingProgramName"
+      relationship: "Egy TrainingCategory több TrainingProgramName értéket foglalhat magában."
+    documentation_status: "confirmed"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["szűrés", "csoportosítás", "kategóriák összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "TrainingType"
+    label: "Képzés típusa"
+    group: "képzésszervezési adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Internal", "External"]
+    value_definitions:
+      Internal: >-
+        A vállalat által szervezett képzés, amelyet a HR képzési osztály saját oktatója vagy belső
+        digitális tananyag biztosít.
+      External: >-
+        Külső szolgáltató által szervezett vagy külső oktató által tartott képzés.
+    classification_rule: >-
+      Oktató nélküli online képzésnél a belső vagy külső besorolást a tananyag
+      gazdája, nem pedig a Trainer mező kitöltöttsége határozza meg.
+    documentation_status: "confirmed"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["szűrés", "csoportosítás", "belső és külső képzések összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "DeliveryMode"
+    label: "Képzési forma"
+    group: "képzésszervezési adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["In-person", "Live Online", "Self-paced Online", "Hybrid"]
+    value_definitions:
+      "In-person": >-
+        Személyes jelenléti képzés, amelyet az oktató és a résztvevők
+        azonos fizikai helyszínen végeznek.
+      "Live Online": >-
+        Valós időben, online felületen megtartott, oktató által vezetett képzés,
+        amelyen a résztvevők távolról vesznek részt.
+      "Self-paced Online": >-
+        Oktató közvetlen jelenléte nélkül, önállóan és egyéni ütemben
+        elvégezhető digitális képzés.
+      "Hybrid": >-
+        Személyes jelenléti és online tanulási elemeket egyaránt
+        tartalmazó képzés.
+    documentation_status: "confirmed"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["szűrés", "csoportosítás", "képzési formák összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "LocationCode"
+    label: "Képzési helyszínkód"
+    group: "képzésszervezési adatok"
+    data_type: "categorical"
+    nullable: false
+    description: "Technikai helyszínkód, amelynek pontos jelentése nem dokumentált."
+    documentation_status: "partially_documented"
+    usable_for_analysis: false
+    privacy_class: "confidential_hr_data"
+    allowed_uses: []
+    output_allowed: false
+    restrictions:
+      - "Elemzéshez, szűréshez és összehasonlításhoz nem használható."
+
+  - name: "Trainer"
+    label: "Oktató"
+    group: "oktatói adatok"
+    data_type: "categorical"
+    nullable: true
+    missing_value_meaning: "Self-paced Online képzésnél nincs személyes oktató, önállóan, tananyagból tanul a munkavállaló."
+    description: "A személyes oktató neve vagy szintetikus belső oktatói azonosítója."
+    documentation_status: "confirmed"
+    privacy_class: "personal_identifier"
+    allowed_uses:
+      - "konkrét oktató aggregált értékelése"
+      - "oktatók egyenkénti elemzése és összehasonlítása"
+      - "oktatói értékelések összehasonlítása válaszadói csoportok szerint"
+    output_allowed: "aggregated_only"
+    minimum_response_count: 1
+    restrictions:
+      - "Az értékelések számát minden eredmény mellett közölni kell."
+      - "Az egyéni válaszadók adatai nem jeleníthetők meg."
+      - "Az eltérésekből az eltérés okára vagy oksági kapcsolatra nem lehet következtetni."
+    
+  - name: "TrainerGender"
+    label: "Oktató neme"
+    group: "oktatói adatok"
+    data_type: "categorical"
+    nullable: true
+    allowed_values: ["Female", "Male"]
+    missing_value_meaning: "Self-paced Online képzésnél nincs személyes oktató."
+    documentation_status: "confirmed"
+    privacy_class: "sensitive_personal_attribute"
+    allowed_uses:
+      - "oktatói értékelések összehasonlítása az oktató neme szerint"
+      - "oktatói értékelések összehasonlítása válaszadói csoportok szerint"
+      - "az oktató és a válaszadó nemének együttes vizsgálata"
+    output_allowed: "aggregated_only"
+    minimum_response_count: 1
+    restrictions:
+      - "Az értékelések számát minden eredmény mellett közölni kell."
+      - "Az egyéni válaszadók adatai nem jeleníthetők meg."
+      - "A különbségekből oksági kapcsolat vagy magyarázat nem állapítható meg."
+
+  - name: "TrainingProvider"
+    label: "Képzési szolgáltató"
+    group: "képzésszervezési adatok"
+    data_type: "categorical"
+    nullable: false
+    description: "A képzést biztosító belső egység, külső szolgáltató vagy digitális platform."
+    documentation_status: "confirmed"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["szűrés", "csoportosítás", "szolgáltatók aggregált összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "TrainingDurationDays"
+    label: "Képzés időtartama"
+    group: "ráfordítási adatok"
+    data_type: "integer"
+    nullable: false
+    allowed_range: {minimum: 1, maximum: 3}
+    unit: "nap"
+    description: "A képzés időtartama napokban."
+    documentation_status: "confirmed"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["összegzés", "átlagolás", "képzési ráfordítás elemzése"]
+    output_allowed: "aggregated_only"
+
+  - name: "TrainingCostUSD"
+    label: "Képzési költség"
+    group: "ráfordítási adatok"
+    data_type: "decimal"
+    nullable: false
+    observed_range: {minimum: 25.17, maximum: 1558.86}
+    unit: "USD"
+    description: "Az adott képzési rekordhoz tartozó pozitív költség USD-ben."
+    documentation_status: "confirmed"
+    privacy_class: "confidential_financial_data"
+    allowed_uses: ["összes költség", "átlagos költség", "egy résztvevőre jutó költség", "programok költségének összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "CompletionStatus"
+    label: "Teljesítési státusz"
+    group: "teljesítési adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Completed", "Incomplete", "Cancelled"]
+    value_definitions:
+      Completed: "A képzés befejeződött."
+      Incomplete: "A képzés megkezdődött, de nem fejeződött be."
+      Cancelled: "A képzési részvételt törölték."
+    documentation_status: "confirmed"
+    privacy_class: "sensitive_hr_assessment"
+    allowed_uses: ["teljesítési arány", "félbehagyási arány", "törlési arány", "aggregált összehasonlítás"]
+    output_allowed: "aggregated_only"
+
+  - name: "TrainingResult"
+    label: "Képzési eredmény"
+    group: "teljesítési adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Passed", "Failed", "Not Taken", "Not Applicable"]
+    value_definitions:
+      Passed: "A kapcsolódó értékelés sikeres."
+      Failed: "A kapcsolódó értékelés sikertelen."
+      Not Taken: "Az értékelést még nem teljesítették."
+      Not Applicable: "A képzéshez nem tartozik alkalmazható értékelés."
+    documentation_status: "confirmed"
+    privacy_class: "sensitive_hr_assessment"
+    allowed_uses: ["sikerességi arány", "eredménymegoszlás", "aggregált összehasonlítás"]
+    output_allowed: "aggregated_only"
+
+  - name: "AssessmentAttempts"
+    label: "Értékelési próbálkozások száma"
+    group: "teljesítési adatok"
+    data_type: "integer"
+    nullable: true
+    allowed_range: {minimum: 0, maximum: 3}
+    missing_value_meaning: "Nincs vizsga vagy a képzést törölték."
+    value_definitions:
+      0: "Az értékelést még nem próbálták meg."
+    documentation_status: "confirmed"
+    privacy_class: "sensitive_hr_assessment"
+    allowed_uses: ["aggregált próbálkozásszám", "eredményekkel való összefüggés vizsgálata"]
+    output_allowed: "aggregated_only"
+
+  - name: "FeedbackSubmitted"
+    label: "Visszajelzés érkezett"
+    group: "visszajelzési adatok"
+    data_type: "boolean_categorical"
+    nullable: false
+    allowed_values: ["Yes", "No"]
+    documentation_status: "confirmed"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["visszajelzési arány", "válaszadási torzítás vizsgálata"]
+    output_allowed: "aggregated_only"
+
+  - name: "OverallSatisfactionScore"
+    label: "Általános elégedettség a képzéssel"
+    group: "visszajelzési pontszámok"
+    data_type: "ordinal_integer"
+    nullable: true
+    allowed_range: {minimum: 1, maximum: 5}
+    exact_question_text: >-
+      Összességében elégedett vagyok a képzéssel.
+    scale_labels: &agreement_scale
+      1: "Egyáltalán nem értek egyet"
+      2: "Inkább nem értek egyet"
+      3: "Részben egyetértek, részben nem"
+      4: "Inkább egyetértek"
+      5: "Teljes mértékben egyetértek"
+    documentation_status: "confirmed"
+    missing_value_meaning: "Nem érkezett visszajelzés vagy a kérdés nem volt megítélhető."
+    privacy_class: "sensitive_hr_survey_data"
+    allowed_uses: ["aggregált átlag", "eloszlás", "csoportok összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "TrainerEvaluationScore"
+    label: "Oktató értékelése"
+    group: "visszajelzési pontszámok"
+    data_type: "ordinal_integer"
+    nullable: true
+    allowed_range: {minimum: 1, maximum: 5}
+    exact_question_text: >-
+      Az oktató eredményesen megfelelő stílusban adta át a tananyagot,
+      és eredményesen támogatta annak elsajátítását.
+    scale_labels: *agreement_scale
+    documentation_status: "confirmed"
+    missing_value_meaning: "Nincs személyes oktató, nem érkezett visszajelzés vagy a kérdés nem volt megítélhető."
+    privacy_class: "sensitive_hr_survey_data"
+    allowed_uses: ["aggregált átlag", "eloszlás", "oktatók egyenkénti aggregált összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "JobRelevanceScore"
+    label: "Munkaköri relevancia"
+    group: "visszajelzési pontszámok"
+    data_type: "ordinal_integer"
+    nullable: true
+    allowed_range: {minimum: 1, maximum: 5}
+    exact_question_text: >-
+      A képzésen megszerzett tudás és készségek támogatják jelenlegi
+      munkaköröm eredményes ellátását.
+    scale_labels: *agreement_scale
+    documentation_status: "confirmed"
+    missing_value_meaning: "Nem érkezett visszajelzés vagy a kérdés nem volt megítélhető."
+    privacy_class: "sensitive_hr_survey_data"
+    allowed_uses: ["aggregált átlag", "eloszlás", "csoportok összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "PersonalRelevanceScore"
+    label: "Személyes szakmai relevancia"
+    group: "visszajelzési pontszámok"
+    data_type: "ordinal_integer"
+    nullable: true
+    allowed_range: {minimum: 1, maximum: 5}
+    exact_question_text: >-
+      A képzés hozzájárult a személyes szakmai fejlődésemhez.
+    scale_labels: *agreement_scale
+    documentation_status: "confirmed"
+    missing_value_meaning: "Nem érkezett visszajelzés vagy a kérdés nem volt megítélhető."
+    privacy_class: "sensitive_hr_survey_data"
+    allowed_uses: ["aggregált átlag", "eloszlás", "csoportok összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "DigitalContentUsabilityScore"
+    label: "Digitális tananyag használhatósága"
+    group: "visszajelzési pontszámok"
+    data_type: "ordinal_integer"
+    nullable: true
+    allowed_range: {minimum: 1, maximum: 5}
+    exact_question_text: >-
+      A digitális tananyag felépítése és működése támogatta annak érthető és önálló feldolgozását.
+    scale_labels: *agreement_scale
+    missing_value_meaning: "Nincs digitális tananyag, nem érkezett visszajelzés vagy a kérdés nem volt megítélhető."
+    documentation_status: "confirmed"
+    privacy_class: "sensitive_hr_survey_data"
+    allowed_uses: ["aggregált átlag", "eloszlás", "digitális képzési formák összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+derived_dimensions:
+  - name: "TrainingYear"
+    label: "Képzés éve"
+    source_field: "TrainingDate"
+    calculation: "A TrainingDate naptári éve."
+  - name: "TrainingMonth"
+    label: "Képzés hónapja"
+    source_field: "TrainingDate"
+    calculation: "A TrainingDate éve és hónapja YYYY-MM formátumban."
+
+derived_metrics:
+  - name: "ParticipationRate"
+    label: "Képzési részvételi arány"
+    formula: "Az időszakban legalább egy képzési rekorddal rendelkező egyedi EmpID / az időszakban állományban lévő egyedi EmpID * 100"
+    unit: "százalék"
+  - name: "CompletionRate"
+    label: "Teljesítési arány"
+    formula: "Completed / (Completed + Incomplete) * 100"
+    unit: "százalék"
+  - name: "IncompleteRate"
+    label: "Félbehagyási arány"
+    formula: "Incomplete / (Completed + Incomplete) * 100"
+    unit: "százalék"
+  - name: "CancellationRate"
+    label: "Törlési arány"
+    formula: "Cancelled / összes képzési rekord * 100"
+    unit: "százalék"
+  - name: "FeedbackRate"
+    label: "Visszajelzési arány"
+    formula: "FeedbackSubmitted = Yes rekordok / összes képzési rekord * 100"
+    unit: "százalék"
+  - name: "PassRate"
+    label: "Sikerességi arány"
+    formula: "Passed / (Passed + Failed) * 100"
+    unit: "százalék"
+  - name: "CostPerParticipant"
+    label: "Egy résztvevőre jutó képzési költség"
+    formula: "TrainingCostUSD összege / egyedi EmpID-k száma"
+    unit: "USD/fő"
+
+  - name: "AverageOverallSatisfactionIndex"
+    label: "Átlagos képzési elégedettségi index"
+    formula: "Az (OverallSatisfactionScore - 1) * 25 értékek átlaga"
+    unit: "pont"
+    range: [0, 100]
+    denominator: "Érvényes OverallSatisfactionScore értékkel rendelkező rekordok"
+
+  - name: "AverageTrainerEvaluationIndex"
+    label: "Átlagos oktatói értékelési index"
+    formula: "Az (TrainerEvaluationScore - 1) * 25 értékek átlaga"
+    unit: "pont"
+    range: [0, 100]
+
+  - name: "AverageJobRelevanceIndex"
+    label: "Átlagos munkaköri relevanciaindex"
+    formula: "Az (JobRelevanceScore - 1) * 25 értékek átlaga"
+    unit: "pont"
+    range: [0, 100]
+
+  - name: "AveragePersonalRelevanceIndex"
+    label: "Átlagos személyes relevanciaindex"
+    formula: "Az (PersonalRelevanceScore - 1) * 25 értékek átlaga"
+    unit: "pont"
+    range: [0, 100]
+
+  - name: "AverageDigitalContentUsabilityIndex"
+    label: "Átlagos digitális használhatósági index"
+    formula: "Az (DigitalContentUsabilityScore - 1) * 25 értékek átlaga"
+    unit: "pont"
+    range: [0, 100]
+    
+derived_fields:
+  - name: "OverallSatisfactionIndex"
+    label: "Képzési elégedettségi index"
+    source_field: "OverallSatisfactionScore"
+    calculation: "(OverallSatisfactionScore - 1) * 25"
+    range: [0, 100]
+
+  - name: "TrainerEvaluationIndex"
+    label: "Oktatói értékelési index"
+    source_field: "TrainerEvaluationScore"
+    calculation: "(TrainerEvaluationScore - 1) * 25"
+    range: [0, 100]
+
+  - name: "JobRelevanceIndex"
+    label: "Munkaköri relevanciaindex"
+    source_field: "JobRelevanceScore"
+    calculation: "(JobRelevanceScore - 1) * 25"
+    range: [0, 100]
+
+  - name: "PersonalRelevanceIndex"
+    label: "Személyes relevanciaindex"
+    source_field: "PersonalRelevanceScore"
+    calculation: "(PersonalRelevanceScore - 1) * 25"
+    range: [0, 100]
+
+  - name: "DigitalContentUsabilityIndex"
+    label: "Digitális tananyag használhatósági indexe"
+    source_field: "DigitalContentUsabilityScore"
+    calculation: "(DigitalContentUsabilityScore - 1) * 25"
+    range: [0, 100]
+
+business_rules:
+  - id: "unique_training_record"
+    rule: "A TrainingRecordID minden sorban kitöltött és egyedi."
+  - id: "valid_employee_reference"
+    rule: "Minden EmpID értéknek léteznie kell az employee adatállományban."
+  - id: "employment_period"
+    rule: "A TrainingDate nem lehet korábbi a StartDate értékénél és nem lehet későbbi a kitöltött ExitDate értékénél."
+  - id: "cutoff_date"
+    rule: "A TrainingDate nem lehet későbbi 2026-06-30-nál."
+  - id: "self_paced_trainer"
+    rule: "Self-paced Online képzésnél a Trainer és TrainerGender hiányzó."
+  - id: "score_range"
+    rule: "Minden kitöltött visszajelzési pontszám egész szám 1 és 5 között."
+  - id: "feedback_score_consistency"
+    rule: >-
+      FeedbackSubmitted = No esetén minden visszajelzési pontszám hiányzó.
+      FeedbackSubmitted = Yes esetén az alkalmazható pontszámok kitöltöttek.
+  - id: "digital_score_applicability"
+    rule: >-
+      DigitalContentUsabilityScore csak digitális tananyagot tartalmazó
+      képzésnél értelmezhető.
+  - id: "trainer_consistency"
+    rule: >-
+      Oktató által vezetett képzésnél a Trainer és TrainerGender kitöltött;
+      Self-paced Online képzésnél mindkettő hiányzó.
+  - id: "completion_result_consistency"
+    rule: >-
+      A CompletionStatus és a TrainingResult csak a dokumentált,
+      egymással összeegyeztethető értékpárokat tartalmazhatja.
+  - id: "cancelled_feedback"
+    rule: >-
+      Cancelled képzésnél FeedbackSubmitted = No, és minden
+      visszajelzési pontszám hiányzó.
+
+analysis_rules:
+  comparison_context: >-
+    Képzési formák, szolgáltatók vagy programok összehasonlításakor figyelembe
+    kell venni a programösszetétel, a kötelezőség, a munkakör és az időszak eltérését.
+  repeated_records: >-
+    Ugyanaz a munkavállaló több képzési rekordban szerepelhet. A rekordszám és
+    az egyedi résztvevők száma nem azonos mutató.
+  feedback_bias: >-
+    A visszajelzési eredmények csak a visszajelzést adók véleményét mutatják.
+    Mivel a visszajelzési arány teljesítési státusz szerint eltér, válaszadási
+    torzítás lehetséges.
+  minimum_group_size: 4
+  minimum_group_size_exception:
+    applies_to: "konkrét oktatók aggregált értékelése"
+    requirement: "Az elemszámot minden esetben közölni kell."
+  causal_inference: >-
+    A képzési jellemzők, teljesítés, visszajelzés, teljesítmény vagy engagement
+    közötti összefüggés önmagában nem bizonyít oksági kapcsolatot.
+  result_language: >-
+    A válasz különböztesse meg a nyers adatot, a számított eredményt, a megfigyelt
+    összefüggést és a feltételezett magyarázatot.
+  organizational_filtering: >-
+    Szervezeti szűrésnél a mutató számlálóját és nevezőjét ugyanarra
+    a szervezeti csoportra és időszakra kell szűrni.
+  trainer_reporting: >-
+    Konkrét oktatók aggregált eredménye megjeleníthető a válaszadók
+    számától függetlenül, de az elemszámot mindig közölni kell.
+    Egyéni válaszadók adatai nem jeleníthetők meg.
+
+known_documentation_gaps: []
+
+dataset_limitations:
+  - >-
+    Öt, nagyon rövid ideig foglalkoztatott munkavállalóhoz nem tartozik képzési
+    rekord; ez a dokumentált generálási szabályok alapján nem adatminőségi hiba.
+  - >-
+    A költség USD-ben szerepel; árfolyam, inflációs korrekció és költségkomponensek
+    részletezése nem áll rendelkezésre.
+  - >-
+    A képzés dátuma kezdőnap, külön befejezési dátum nem áll rendelkezésre.
+  - >-
+    Szöveges visszajelzés nem áll rendelkezésre, ezért a pontszámok mögötti okok
+    az adatokból nem állapíthatók meg.
+  - >-
+    A képzések és más HR-eredmények közötti kapcsolat megfigyeléses jellegű;
+    kiválasztási és egyéb háttértényezők torzíthatják az összehasonlítást.
+  - >-
+    A visszajelzések csak a választ adó résztvevőket reprezentálják.
+    A félbehagyott képzések alacsonyabb visszajelzési aránya miatt
+    válaszadási torzítás lehetséges.
+  - >-
+    A résztvevők tudásszintjéről képzés előtti mérés nem áll
+    rendelkezésre, ezért a képzés által okozott tudásnövekedés
+    nem határozható meg.
+  - >-
+    A TrainingProvider a képzés belső vagy külső szolgáltatóját jelöli.
+    Szolgáltatótípus szerinti összehasonlítás végezhető, de figyelembe
+    kell venni a programösszetétel, a képzési forma, a kötelezőség,
+    a célcsoport és az időszak eltéréseit.
