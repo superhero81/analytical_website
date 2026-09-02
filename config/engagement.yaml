@@ -1,0 +1,282 @@
+dataset:
+  id: "engagement"
+  name: "Féléves engagement-felmérések"
+  file: "employee_engagement_survey_data_clean.csv"
+  description: >-
+    Szintetikus, féléves munkavállalói felmérési válaszok az elkötelezettség,
+    az általános elégedettség és a munka–magánélet egyensúlya témájában.
+  row_grain: "Egy sor egy munkavállaló egy felmérési hullámban adott válasza."
+  primary_key: "ResponseID"
+  row_count: 31290
+  official_cutoff_date: "2026-06-30"
+  temporal_coverage:
+    first_wave: "2001-H2"
+    first_launch_date: "2001-09-01"
+    last_wave: "2026-H1"
+    last_launch_date: "2026-03-01"
+    last_response_date: "2026-03-14"
+    wave_count: 50
+  relationship:
+    target_dataset: "employee"
+    join_key: "EmpID"
+    cardinality: "many_to_one"
+
+privacy:
+  default_output_level: "aggregated"
+  minimum_group_size: 4
+  individual_rows_allowed_in_answers: false
+  rules:
+    - "Egyéni felmérési válasz nem jeleníthető meg."
+    - "Az 1–3 válaszadót tartalmazó csoportok eredményét külön nem szabad közölni."
+
+fields:
+  - name: "ResponseID"
+    label: "Válaszazonosító"
+    group: "azonosítók"
+    data_type: "string"
+    nullable: false
+    unique: true
+    role: ["primary_key"]
+    format: "RESP-######"
+    description: "A felmérési válasz egyedi, szintetikus technikai azonosítója."
+    documentation_status: "confirmed"
+    privacy_class: "pseudonymous_identifier"
+    allowed_uses: ["válaszrekordok egyedi számlálása", "adatminőségi ellenőrzés"]
+    output_allowed: false
+
+  - name: "EmpID"
+    label: "Munkavállalói azonosító"
+    group: "azonosítók"
+    data_type: "integer"
+    nullable: false
+    role: ["foreign_key", "join_key"]
+    references: "employee.EmpID"
+    description: "A válaszadó szintetikus munkavállalói azonosítója."
+    documentation_status: "confirmed"
+    privacy_class: "pseudonymous_identifier"
+    allowed_uses: ["kapcsolás a munkavállalói törzshöz", "egyedi válaszadók számlálása", "hullámok közötti követés"]
+    output_allowed: false
+
+  - name: "SurveyWaveID"
+    label: "Felmérési hullám azonosítója"
+    group: "felmérési időadatok"
+    data_type: "string"
+    nullable: false
+    format: "YYYY-H1 vagy YYYY-H2"
+    description: "A féléves felmérési hullám egyedi időszaki azonosítója."
+    value_definitions:
+      H1: "Az adott év első féléves, március 1-jén induló hulláma."
+      H2: "Az adott év második féléves, szeptember 1-jén induló hulláma."
+    documentation_status: "confirmed"
+    privacy_class: "non_sensitive"
+    allowed_uses: ["szűrés", "csoportosítás", "hullámok összehasonlítása", "idősoros elemzés"]
+    output_allowed: true
+
+  - name: "SurveyLaunchDate"
+    label: "Felmérési hullám indulási dátuma"
+    group: "felmérési időadatok"
+    data_type: "date"
+    format: "YYYY-MM-DD"
+    nullable: false
+    description: "A felmérési hullám megnyitásának napja."
+    documentation_status: "confirmed"
+    privacy_class: "non_sensitive"
+    allowed_uses: ["hullámok időrendi rendezése", "válaszadásra jogosult állomány meghatározása", "demográfiai és foglalkoztatási jellemzők referencia-dátuma"]
+    output_allowed: true
+
+  - name: "SurveyDate"
+    label: "Válaszadás dátuma"
+    group: "felmérési időadatok"
+    data_type: "date"
+    format: "YYYY-MM-DD"
+    nullable: false
+    description: "A felmérési válasz rögzítésének napja."
+    documentation_status: "confirmed"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["válaszadási késés számítása", "válasz munkaviszonyon belüliségének ellenőrzése"]
+    output_allowed: "aggregated_only"
+
+  - name: "EngagementScore"
+    label: "Elkötelezettségi pontszám"
+    group: "felmérési pontszámok"
+    data_type: "ordinal_integer"
+    nullable: false
+    allowed_range: {minimum: 1, maximum: 5}
+    observed_range: {minimum: 2, maximum: 5}
+    description: "Az elkötelezettség 1–5-ös skálán tárolt pontszáma."
+    exact_question_text: >-
+      Mennyire érzed magad elkötelezettnek a vállalat és annak céljai iránt?      
+    scale_labels:
+      1: "Egyáltalán nem"
+      2: "Kis mértékben"
+      3: "Közepes mértékben"
+      4: "Nagymértékben"
+      5: "Teljes mértékben"
+    documentation_status: "confirmed"
+    interpretation_warning: >-
+      A mező egyetlen kérdéssel méri az önbevalláson alapuló
+      elkötelezettséget, nem több kérdésből képzett összetett engagement-index.
+    privacy_class: "sensitive_hr_survey_data"
+    allowed_uses: ["aggregált átlag", "eloszlás", "hullámok és csoportok összehasonlítása", "összefüggések vizsgálata"]
+    output_allowed: "aggregated_only"
+
+  - name: "SatisfactionScore"
+    label: "Munkahelyi elégedettségi pontszám"
+    group: "felmérési pontszámok"
+    data_type: "ordinal_integer"
+    nullable: false
+    allowed_range: {minimum: 1, maximum: 5}
+    observed_range: {minimum: 2, maximum: 5}
+    description: "Az általános munkahelyi elégedettség 1–5-ös skálán tárolt pontszáma."
+    exact_question_text: >-
+      Mindent egybevetve, mennyire vagy elégedett a vállalattal
+      mint munkahellyel?
+    scale_labels:
+      1: "Egyáltalán nem vagyok elégedett"
+      2: "Inkább nem vagyok elégedett"
+      3: "Semleges"
+      4: "Elégedett vagyok"
+      5: "Teljes mértékben elégedett vagyok"
+    documentation_status: "confirmed"
+    interpretation_warning: >-
+      A mező egyetlen, általános munkahelyi elégedettségi kérdés eredménye,
+      nem több kérdésből képzett elégedettségi index.    
+    privacy_class: "sensitive_hr_survey_data"
+    allowed_uses: ["aggregált átlag", "eloszlás", "hullámok és csoportok összehasonlítása", "összefüggések vizsgálata"]
+    output_allowed: "aggregated_only"
+
+
+  - name: "WorkLifeBalanceScore"
+    label: "Munka–magánélet egyensúlyának pontszáma"
+    group: "felmérési pontszámok"
+    data_type: "ordinal_integer"
+    nullable: false
+    allowed_range: {minimum: 1, maximum: 5}
+    observed_range: {minimum: 2, maximum: 5}
+    description: "A munka–magánélet egyensúlyának 1–5-ös skálán tárolt pontszáma."
+    exact_question_text: >-
+      Mennyire érzed úgy, hogy a munkád mellett elegendő időd és energiád
+      jut a magánéletedre?
+    scale_labels:
+      1: "Egyáltalán nem jut"
+      2: "Inkább nem jut"
+      3: "Semleges / Részben jut"
+      4: "Inkább jut"
+      5: "Teljes mértékben jut"
+    documentation_status: "confirmed"
+    interpretation_warning: >-
+      A mező egyetlen kérdéssel méri a munka és a magánélet érzékelt
+      egyensúlyát. Alacsony értéke önmagában nem bizonyítja a kiégést,
+      legfeljebb annak lehetséges kockázati jelzése lehet.
+    privacy_class: "sensitive_hr_survey_data"
+    allowed_uses: ["aggregált átlag", "eloszlás", "hullámok és csoportok összehasonlítása", "összefüggések vizsgálata"]
+    output_allowed: "aggregated_only"
+
+
+derived_dimensions:
+  - name: "SurveyYear"
+    label: "Felmérés éve"
+    source_field: "SurveyLaunchDate"
+    calculation: "A SurveyLaunchDate naptári éve."
+
+  - name: "SurveyHalfYear"
+    label: "Felmérés féléve"
+    source_field: "SurveyWaveID"
+    calculation: "A SurveyWaveID H1 vagy H2 része."
+
+  - name: "ResponseLagDays"
+    label: "Válaszadási késés napokban"
+    source_fields: ["SurveyLaunchDate", "SurveyDate"]
+    calculation: "SurveyDate - SurveyLaunchDate, egész napokban."
+    observed_range: {minimum: 0, maximum: 13}
+
+derived_metrics:
+  - name: "EngagementIndex"
+    label: "Elkötelezettségi index"
+    source_field: "EngagementScore"
+    formula: "(EngagementScore - 1) * 25"
+    range: {minimum: 0, maximum: 100}
+    unit: "pont"
+
+  - name: "SatisfactionIndex"
+    label: "Elégedettségi index"
+    source_field: "SatisfactionScore"
+    formula: "(SatisfactionScore - 1) * 25"
+    range: {minimum: 0, maximum: 100}
+    unit: "pont"
+
+  - name: "WorkLifeBalanceIndex"
+    label: "Munka–magánélet egyensúly index"
+    source_field: "WorkLifeBalanceScore"
+    formula: "(WorkLifeBalanceScore - 1) * 25"
+    range: {minimum: 0, maximum: 100}
+    unit: "pont"
+
+business_rules:
+  - id: "unique_response"
+    rule: "A ResponseID minden sorban kitöltött és egyedi."
+  - id: "one_response_per_wave"
+    rule: "Egy EmpID egy SurveyWaveID értéken belül legfeljebb egyszer szerepelhet."
+  - id: "valid_employee_reference"
+    rule: "Minden EmpID értéknek léteznie kell az employee adatállományban."
+  - id: "employment_period"
+    rule: "A SurveyDate nem lehet korábbi a StartDate értékénél és nem lehet későbbi a kitöltött ExitDate értékénél."
+  - id: "wave_date_consistency"
+    rule: "Egy SurveyWaveID értékhez pontosan egy SurveyLaunchDate tartozhat."
+  - id: "response_window"
+    rule: "A SurveyDate a SurveyLaunchDate napjára vagy az azt követő 13 nap valamelyikére esik."
+  - id: "score_range"
+    rule: "Mindhárom pontszám egész szám 1 és 5 között."
+  - id: "cutoff_date"
+    rule: "A SurveyLaunchDate és SurveyDate nem lehet későbbi 2026-06-30-nál."
+
+analysis_rules:
+  response_rate_denominator: >-
+    Az adott SurveyLaunchDate napján állományban lévő munkavállalók száma:
+    StartDate <= SurveyLaunchDate és ExitDate hiányzik vagy ExitDate > SurveyLaunchDate.
+  respondent_count: "Az adott hullámban szereplő egyedi EmpID értékek száma."
+  response_rate_formula:  respondent_count / response_rate_denominator * 100
+  response_rate_unit: "százalék"
+
+  organizational_filtering: >-
+    Szervezeti szűrés esetén a respondent_count értékét és a
+    response_rate_denominator értékét ugyanarra a szervezeti csoportra
+    kell szűrni.
+
+  score_summary:
+    primary: "átlag"
+    required_context: 
+      - válaszadók száma
+      - válaszadási arány
+      - eloszlás
+
+  repeated_responses: >-
+    Ugyanaz a munkavállaló több hullámban is szerepelhet. Hullámok közötti
+    változás vizsgálatakor külön kell választani a teljes hullámminták és az
+    azonos munkavállalókból álló párosított minta összehasonlítását.
+
+  weighting: "Az adatok súlyozatlanok; súlyváltozó nem áll rendelkezésre."
+  
+  causal_inference: 
+    A pontszámok közötti vagy más HR-adatokkal fennálló összefüggés 
+    önmagában nem bizonyít oksági kapcsolatot.
+
+    
+
+known_documentation_gaps: []
+
+dataset_limitations:
+  - >-
+    Csak válaszadói rekordok állnak rendelkezésre; a nem válaszadókhoz nem
+    tartozik külön felmérési rekord.
+  - >-
+    A felmérés eredményei válaszadói eredmények, ezért a teljes munkavállalói
+    állományra történő általánosításkor a válaszadási arányt és az esetleges
+    válaszadási torzítást jelezni kell.
+  - >-
+    A tartós távollétek története nem áll rendelkezésre. A válaszadásra jogosult
+    állomány meghatározása csak a StartDate és ExitDate alapján történik.
+  - >-
+    Szöveges válaszok, megjegyzések és a pontszámok okait feltáró adatok nem
+    állnak rendelkezésre.
+
