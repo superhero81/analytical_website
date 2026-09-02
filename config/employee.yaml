@@ -1,0 +1,465 @@
+dataset:
+  id: "employee"
+  name: "Munkavállalói törzsadatok"
+  file: "employee_data_clean.csv"
+  description: >-
+    Szintetikus munkavállalói törzsadatok. A fájl a munkavállalók
+    foglalkoztatási, szervezeti, demográfiai és teljesítményadatait tartalmazza.
+  row_grain: "Egy sor egy munkavállaló törzsrekordja."
+  primary_key: "EmpID"
+  row_count: 3000
+  official_cutoff_date: "2026-06-30"
+  relationships:
+    - target_dataset: "engagement"
+      join_key: "EmpID"
+      cardinality: "one_to_many"
+    - target_dataset: "training"
+      join_key: "EmpID"
+      cardinality: "one_to_many"
+
+privacy:
+  default_output_level: "aggregated"
+  minimum_group_size: 4
+  individual_rows_allowed_in_answers: false
+  rules:
+    - "A személyes és érzékeny mezők aggregált elemzéshez használhatók, de egyéni rekordként nem jeleníthetők meg."
+    - "Az 1–3 fős csoportok eredményét külön nem szabad közölni."
+
+fields:
+  - name: "EmpID"
+    label: "Munkavállalói azonosító"
+    group: "azonosítók"
+    data_type: "integer"
+    nullable: false
+    unique: true
+    role: ["primary_key", "join_key"]
+    description: "A munkavállaló egyedi, szintetikus technikai azonosítója."
+    privacy_class: "pseudonymous_identifier"
+    allowed_uses: ["adatállományok összekapcsolása", "egyedi munkavállalók számlálása"]
+    output_allowed: false
+
+  - name: "FirstName"
+    label: "Keresztnév"
+    group: "személyes adatok"
+    data_type: "string"
+    nullable: false
+    description: "A szintetikus munkavállaló keresztneve."
+    privacy_class: "direct_identifier"
+    allowed_uses: ["belső adatellenőrzés"]
+    output_allowed: false
+
+  - name: "LastName"
+    label: "Vezetéknév"
+    group: "személyes adatok"
+    data_type: "string"
+    nullable: false
+    description: "A szintetikus munkavállaló vezetékneve."
+    privacy_class: "direct_identifier"
+    allowed_uses: ["belső adatellenőrzés"]
+    output_allowed: false
+
+  - name: "StartDate"
+    label: "Belépés dátuma"
+    group: "foglalkoztatási adatok"
+    data_type: "date"
+    format: "YYYY-MM-DD"
+    nullable: false
+    description: "A munkavállaló állományba lépésének, vagyis munkaviszonya kezdetének dátuma."
+    synonyms:
+      - "állományba lépés"
+      - "belépési dátum"
+      - "munkaviszony kezdete"
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["létszámszámítás", "szolgálati idő számítása", "belépések elemzése", "időbeli jogosultság ellenőrzése"]
+    output_allowed: "aggregated_only"
+
+  - name: "ExitDate"
+    label: "Kilépés dátuma"
+    group: "foglalkoztatási adatok"
+    data_type: "date"
+    format: "YYYY-MM-DD"
+    nullable: true
+    description: "A munkaviszony utolsó napja."
+    synonyms:
+      - "kilépési dátum"
+      - "kilépés az állományból"
+      - "munkaviszony vége"
+      - "munkaviszony befejezése"
+    missing_value_meaning: "A munkavállaló a záródátumon nem kilépett státuszú, hanem állományban van."
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["létszámszámítás", "fluktuáció számítása", "szolgálati idő számítása", "időbeli jogosultság ellenőrzése"]
+    output_allowed: "aggregated_only"
+
+  - name: "Title"
+    label: "Munkakör"
+    group: "szervezeti adatok"
+    data_type: "string"
+    nullable: false
+    description: "A munkavállaló munkakörének megnevezése."
+    privacy_class: "organizational_attribute"
+    allowed_uses: ["szűrés", "csoportosítás", "munkaköri összehasonlítás"]
+    output_allowed: "aggregated_only"
+
+  - name: "Supervisor"
+    label: "Közvetlen vezető neve"
+    group: "vezetői kapcsolat"
+    data_type: "string"
+    nullable: true
+    description: "A munkavállaló közvetlen vezetőjének szintetikus neve."
+    missing_value_meaning: "Nincs magasabb szintű vezető rögzítve a szervezeti hierarchiában."
+    privacy_class: "direct_identifier"
+    allowed_uses: ["belső hierarchia-ellenőrzés"]
+    output_allowed: false
+
+  - name: "SupervisorID"
+    label: "Közvetlen vezető azonosítója"
+    group: "vezetői kapcsolat"
+    data_type: "integer"
+    nullable: true
+    role: ["self_referencing_foreign_key"]
+    references: "employee.EmpID"
+    description: "A közvetlen vezető EmpID értéke."
+    missing_value_meaning: "Nincs magasabb szintű vezető rögzítve a szervezeti hierarchiában."
+    privacy_class: "pseudonymous_identifier"
+    allowed_uses: ["vezetői hierarchia felépítése", "vezetői csoportok aggregált elemzése"]
+    output_allowed: false
+
+  - name: "ADEmail"
+    label: "Vállalati e-mail-cím"
+    group: "személyes adatok"
+    data_type: "string"
+    nullable: false
+    description: "A szintetikus munkavállaló vállalati e-mail-címe."
+    privacy_class: "direct_identifier"
+    allowed_uses: ["belső adatellenőrzés"]
+    output_allowed: false
+
+  - name: "BusinessUnit"
+    label: "Üzleti egység"
+    group: "szervezeti adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["BPC", "CCDR", "EW", "MSC", "NEL", "PL", "PYZ", "SVG", "TNS", "WBL"]
+    description: "Technikai szervezeti kód, amelynek üzleti jelentése nem dokumentált."
+    usable_for_analysis: false
+    allowed_uses: []
+    output_allowed: false
+    documentation_status: "partially_documented"
+    privacy_class: "organizational_attribute"
+    restrictions:
+      - "Nem használható szervezeti összehasonlításra."
+      - "A kódok jelentése az adatokból nem állapítható meg."
+
+  - name: "EmployeeStatus"
+    label: "Munkavállalói státusz"
+    description: "A munkavállaló nyilvántartott foglalkoztatási státusza."
+    group: "foglalkoztatási adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Active", "Leave of Absence", "Voluntarily Terminated", "Terminated for Cause", "Retired"]
+    value_definitions:
+      Active: "A záródátumon aktív állományban lévő munkavállaló."
+      Leave of Absence: "A záródátumon állományban lévő, tartósan távollévő munkavállaló."
+      Voluntarily Terminated: "Önkéntesen kilépett munkavállaló."
+      Terminated for Cause: "Munkáltatói okból megszüntetett munkaviszony."
+      Retired: "Nyugdíjba vonulás miatt kilépett munkavállaló."
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["létszám meghatározása", "szűrés", "fluktuáció és kilépések elemzése"]
+    output_allowed: "aggregated_only"
+    interpretation_warning: >-
+      Az EmployeeStatus csak a 2026-06-30-i záródátumon fennálló státuszt mutatja.
+      Nem áll rendelkezésre státusztörténet, ezért nem ismert a tartós távollét
+      kezdete, vége, illetve az, hogy ki tért vissza korábban aktív állományba.
+
+  - name: "EmployeeType"
+    label: "Foglalkoztatás típusa"
+    group: "foglalkoztatási adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Full-Time", "Part-Time", "Contract"]
+    value_definitions:
+      Full-Time: "A munkavállaló teljes 8 órás munkaviszonyban bejelentett saját munkavállaló."
+      Part-Time: "A munkavállaló részidőben a vállalatnál dolgozik, 4 vagy 6 órás munkaviszonyban."
+      Contract: "A munkavállaló szerződéses munkaviszonyban áll a vállalattal."
+    description: "A munkavállaló foglalkoztatási formája."
+    privacy_class: "confidential_hr_data"
+    allowed_uses: ["szűrés", "csoportosítás", "foglalkoztatási formák összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "PayZone"
+    label: "Bérzóna"
+    group: "foglalkoztatási adatok"
+    data_type: "ordinal_categorical"
+    nullable: false
+    allowed_values: ["Zone A", "Zone B", "Zone C"]
+    value_definitions:
+      Zone A: "Szintetikus besorolás a munkavállalók bérsávjára, legmagasabb kategória."
+      Zone B: "Szintetikus besorolás a munkavállalók bérsávjára, középső kategória."
+      Zone C: "Szintetikus besorolás a munkavállalók bérsávjára, legalacsonyabb kategória."
+    description: "A munkavállaló bérzónája; a zónák pontos üzleti definíciója nem dokumentált."
+    documentation_status: "confirmed"
+    privacy_class: "compensation_related_attribute"
+    allowed_uses: ["szűrés", "csoportosítás", "bérzónák szerinti aggregált összehasonlítás"]
+    output_allowed: "aggregated_only"
+    interpretation_warning: "A Zone A–C a fizetési besorolást jelenti ahol A a legmagasabb, B a középső és C a legalacsonyabb kategória; a pontos bérsávok nem ismertek."
+
+  - name: "EmployeeClassificationType"
+    description: >-
+      Az EmployeeType mezővel azonos tartalmú, redundáns adminisztratív mező.
+      Elemzéshez az EmployeeType használandó.
+    label: "Munkavállalói besorolás"
+    group: "foglalkoztatási adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Full-Time", "Part-Time", "Temporary"]
+    privacy_class: "confidential_hr_data"
+    allowed_uses: []
+    output_allowed: false
+    documentation_status: "confirmed"
+    usable_for_analysis: false
+    restrictions:
+      - "Elemzési dimenzióként nem használható."
+      - "Helyette az EmployeeType mezőt kell használni."
+
+  - name: "DepartmentType"
+    label: "Szervezeti terület"
+    group: "szervezeti adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Admin Offices", "Executive Office", "IT/IS", "Production", "Sales", "Software Engineering"]
+    description: "A munkavállaló magasabb szintű funkcionális szervezeti területe."
+    documentation_status: "confirmed"
+    privacy_class: "organizational_attribute"
+    allowed_uses: ["szűrés", "csoportosítás", "szervezeti összehasonlítás"]
+    output_allowed: "aggregated_only"
+
+  - name: "Division"
+    label: "Divízió"
+    group: "szervezeti adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Corporate Services", "Data & Analytics", "Data Architecture", "Database & Data Platform", "Executive Leadership", "Finance & Accounting", "IT Infrastructure", "IT Operations", "Production Operations", "Sales & Marketing", "Software Engineering", "Technology Leadership"]
+    description: "A munkavállaló részletesebb szervezeti divíziója."
+    documentation_status: "confirmed"
+    privacy_class: "organizational_attribute"
+    allowed_uses: ["szűrés", "csoportosítás", "divíziók összehasonlítása"]
+    output_allowed: "aggregated_only"
+
+  - name: "DOB"
+    label: "Születési dátum"
+    group: "demográfiai adatok"
+    data_type: "date"
+    format: "YYYY-MM-DD"
+    nullable: false
+    description: "A szintetikus munkavállaló születési dátuma."
+    privacy_class: "sensitive_personal_data"
+    allowed_uses: ["életkor számítása", "korcsoportok képzése", "nyugdíjazási szabály ellenőrzése"]
+    output_allowed: false
+    derived_output_rule: "Csak számított életkor vagy legalább 4 fős korcsoport jeleníthető meg."
+
+  - name: "State"
+    label: "Állam"
+    group: "demográfiai és helyadatok"
+    data_type: "categorical"
+    nullable: false
+    description: "Kétbetűs amerikai államkód; nem dokumentált, hogy lakóhelyet vagy munkavégzési helyet jelöl."
+    documentation_status: "partially_documented"
+    privacy_class: "quasi_identifier"
+    usable_for_analysis: false
+    allowed_uses: []
+    output_allowed: false
+    restrictions:
+      - "Nem használható lakóhelyi vagy munkavégzési hely szerinti elemzésre a jelentés tisztázásáig."
+      - "A kódok jelentésére vonatkozó következtetés nem adható."
+
+  - name: "GenderCode"
+    label: "Nem"
+    group: "demográfiai adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Female", "Male"]
+    description: "A szintetikus adatállományban szereplő nemi kategória."
+    privacy_class: "sensitive_demographic_data"
+    allowed_uses: ["aggregált szűrés", "aggregált csoportosítás", "csoportkülönbségek vizsgálata"]
+    output_allowed: "aggregated_only"
+    interpretation_warning: "Az adatállomány csak két kategóriát tartalmaz; ebből nem következik, hogy más kategória a valóságban nem létezik."
+
+  - name: "LocationCode"
+    description: >-
+      A State mező alá tartozó technikai területi kód.
+      Pontos jelentése és értékeinek feloldása nem dokumentált.
+    label: "Területi technikai kód"
+    group: "szervezeti és helyadatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_uses: []
+    documentation_status: "partially_documented"
+    usable_for_analysis: false
+    privacy_class: "quasi_identifier"
+    restrictions:
+      - "Elemzési dimenzióként nem használható."
+      - "A kódok jelentésére vonatkozó következtetés nem adható."
+    output_allowed: false
+
+  - name: "RaceDesc"
+    label: "Etnikai kategória"
+    group: "demográfiai adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Asian", "Black", "Hispanic", "Other", "White"]
+    description: "A szintetikus adatállomány etnikai kategóriája."
+    privacy_class: "sensitive_demographic_data"
+    allowed_uses: ["aggregált szűrés", "aggregált csoportosítás", "egyenlőségi különbségek vizsgálata"]
+    output_allowed: "aggregated_only"
+    interpretation_warning: "A kategóriák az adatállomány technikai osztályozását jelentik, nem teljes társadalmi vagy identitásbeli leírást."
+
+  - name: "MaritalDesc"
+    label: "Családi állapot"
+    group: "demográfiai adatok"
+    data_type: "categorical"
+    nullable: false
+    allowed_values: ["Divorced", "Married", "Single", "Widowed"]
+    description: "A szintetikus munkavállaló nyilvántartott családi állapota."
+    privacy_class: "sensitive_demographic_data"
+    allowed_uses: ["aggregált szűrés", "aggregált csoportosítás"]
+    output_allowed: "aggregated_only"
+
+  - name: "Performance Score"
+    description: >-
+      A munkavállaló egyetlen rendelkezésre álló, vezetői
+      teljesítményértékelési kategóriája.
+    analysis_assumption: >-
+      Az értékelés pontos időpontja nem ismert. A demó elemzéseiben
+      2026-06-30-i állapotként kezeljük, de ez modellezési feltételezés,
+      nem az adatból igazolt tény.
+    label: "Teljesítménykategória"
+    group: "teljesítményadatok"
+    data_type: "ordinal_categorical"
+    nullable: false
+    allowed_values: ["PIP", "Needs Improvement", "Fully Meets", "Exceeds"]
+    ordered_values_low_to_high: ["PIP", "Needs Improvement", "Fully Meets", "Exceeds"]
+    value_definitions:
+      PIP: "Teljesítményjavító programban érintett."
+      Needs Improvement: "Fejlesztendő teljesítmény."
+      Fully Meets: "Az elvárásokat teljesítő teljesítmény."
+      Exceeds: "Az elvárásokat meghaladó teljesítmény."
+    documentation_status: "partially_documented"
+    privacy_class: "sensitive_hr_assessment"
+    usable_for_analysis: true
+    allowed_uses:
+      - "keresztmetszeti, aggregált csoport-összehasonlítás"
+    restrictions:
+      - "Idősoros elemzésre nem használható."
+      - "A teljesítményértékelés pontos dátuma nem ismert."
+      - "A 2026-06-30-i referencia-időpont modellezési feltételezésként kezelendő."
+      - "Oksági következtetésre nem használható."
+    output_allowed: "aggregated_only"
+
+  - name: "Current Employee Rating"
+    label: "Aktuális munkavállalói értékelés"
+    group: "teljesítményadatok"
+    data_type: "ordinal_integer"
+    nullable: false
+    allowed_range: {minimum: 1, maximum: 5}
+    description: "1–5 közötti értékelés, amelynek forrása, pontos skálája és referencia-időpontja nem dokumentált."
+    documentation_status: "partially_documented"
+    usable_for_analysis: false
+    privacy_class: "sensitive_hr_assessment"
+    allowed_uses: []
+    output_allowed: false
+    restrictions:
+      - "Elemzéshez és következtetések levonásához nem használható."
+      - "Nem értelmezhető engagement- vagy teljesítménymutatóként."
+      - "Használata csak a forrás, a skála és a referencia-időpont dokumentálása után engedélyezhető."
+
+derived_dimensions:
+  - name: "Generation"
+    label: "Generáció"
+    source_field: "DOB"
+    calculation_basis: "születési év"
+    categories:
+      - label: "Silent Generation (1945 vagy korábban)"
+        birth_year_to: 1945
+      - label: "Baby Boomer (1946–1964)"
+        birth_year_from: 1946
+        birth_year_to: 1964
+      - label: "Generation X (1965–1980)"
+        birth_year_from: 1965
+        birth_year_to: 1980
+      - label: "Millennial (1981–1996)"
+        birth_year_from: 1981
+        birth_year_to: 1996
+      - label: "Generation Z (1997–2012)"
+        birth_year_from: 1997
+        birth_year_to: 2012
+    interpretation_warning: >-
+      A generációs határok megállapodáson alapulnak. A csoportok közötti
+      különbségek nem magyarázhatók automatikusan generációs sajátosságokkal.
+
+  - name: "AgeGroup"
+    label: "Korcsoport"
+    source_field: "DOB"
+    calculation_basis: "Az életkor az elemzés referencia-dátumán."
+    categories:
+      - label: "29 éves vagy fiatalabb"
+        age_max: 29
+      - label: "30–44 éves"
+        age_min: 30
+        age_max: 44
+      - label: "45–59 éves"
+        age_min: 45
+        age_max: 59
+      - label: "60 éves vagy idősebb"
+        age_min: 60
+    reference_date_rule: >-
+      Az életkort az elemzett esemény vagy időszak referencia-dátumán kell
+      kiszámítani. Éves állományi elemzésnél december 31., 2026-ban június 30.;
+      engagement-elemzésnél SurveyLaunchDate; képzési elemzésnél TrainingDate;
+      kilépési elemzésnél ExitDate használandó.
+    interpretation_warning: >-
+      Az életkort mindig az elemzés időpontjára kell kiszámítani.
+      Aktuális állományi elemzésnél ez legfeljebb 2026-06-30 lehet.
+
+business_rules:
+  - id: "employee_unique"
+    rule: "Az EmpID minden sorban kitöltött és egyedi."
+  - id: "employment_dates"
+    rule: "A StartDate nem lehet későbbi az ExitDate értékénél, és egyik dátum sem lehet későbbi 2026-06-30-nál."
+  - id: "status_exit_consistency"
+    rule: "Active és Leave of Absence státusznál az ExitDate hiányzik; Voluntarily Terminated, Terminated for Cause és Retired státusznál kitöltött."
+  - id: "supervisor_reference"
+    rule: "A kitöltött SupervisorID értéknek létező EmpID értékre kell hivatkoznia, és nem egyezhet meg a munkavállaló saját EmpID értékével."
+  - id: "active_on_date"
+    rule: "Egy munkavállaló akkor van állományban egy napon, ha StartDate <= vizsgált nap és ExitDate hiányzik vagy ExitDate >= vizsgált nap."
+  - id: "age_calculation"
+    rule: "Az életkort a DOB és az elemzéshez tartozó referencia-dátum alapján kell számítani; a DOB közvetlenül nem jeleníthető meg."
+  - id: "no_individual_output"
+    rule: "Egyéni munkavállalói rekord vagy közvetlen azonosító nem adható vissza elemzési válaszban."
+
+known_documentation_gaps: []
+
+dataset_limitations:
+  - >-
+    A tartós távollétek története nem elemezhető. Az engagement- és képzési
+    adatok nem tartalmazzák a távolléti időszakokat, ezért ezek az adatállományok
+    úgy kezelik a munkavállalókat, mintha a teljes munkaviszonyuk alatt
+    rendelkezésre álltak volna.
+  - >-
+    Nem vizsgálható, hogy a tartós távollét hogyan befolyásolta a felmérési
+    részvételt, a képzési részvételt vagy más HR-mutatókat.
+  - >-
+    A BusinessUnit technikai kódjainak üzleti jelentése nem ismert,
+    ezért a mező szervezeti elemzésekben és válaszokban nem használható.
+  - >-
+    Az EmployeeClassificationType redundáns az EmployeeType mezővel.
+    Az AI elemzéshez kizárólag az EmployeeType mezőt használja.
+  - >-
+    A State mezőről nem állapítható meg, hogy lakóhelyet vagy
+    munkavégzési helyet jelöl, ezért elemzésben nem használható.
+  - >-
+    A LocationCode pontos jelentése és értékeinek feloldása nem ismert,
+    ezért elemzésben nem használható.
+  - >-
+    A Current Employee Rating mező forrása, pontos skálája és
+    referencia-időpontja nem dokumentált, ezért elemzésben,
+    összehasonlításban és válaszadásban nem használható.
