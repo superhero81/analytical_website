@@ -1,0 +1,4347 @@
+metadata:
+  file_name: "metrics.yaml"
+  purpose: "Az AI által használható számított HR-mutatók definíciói."
+  official_cutoff_date: "2026-06-30"
+
+metric_groups:
+  - id: "workforce"
+    label: "Létszám és foglalkoztatás"
+
+  - id: "turnover"
+    label: "Fluktuáció"
+
+  - id: "engagement"
+    label: "Engagement és elégedettség"
+
+  - id: "training"
+    label: "Képzés és fejlesztés"
+
+
+metrics:
+  - name: "ClosingHeadcount"
+    label: "Zárónapi létszám"
+    group: "workforce"
+
+    description: >-
+      A referencia-időpontban állományban lévő munkavállalók száma.
+
+    source_datasets:
+      - "employee"
+
+    required_fields:
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "StartDate"
+        expected_type: "date"
+      - dataset: "employee"
+        field: "ExitDate"
+        expected_type: "date_or_null"
+ 
+    formula: >-
+      COUNT(DISTINCT EmpID), ahol StartDate <= reference_date és
+      (ExitDate üres vagy ExitDate > reference_date).
+
+    numerator: "A referencia-időpontban állományban lévő egyedi munkavállalók száma."
+    denominator: null
+    unit: "fő"
+
+    time_reference: >-
+      Alapértelmezett referencia-időpont: 2026-06-30.
+      Más dátum csak az adatállomány időbeli lefedettségén belül használható.
+
+    organizational_filtering: >-
+      A létszám az employee adatállomány használható szervezeti és
+      munkavállalói jellemzői szerint szűrhető.
+
+    missing_value_handling: >-
+      A hiányzó ExitDate azt jelenti, hogy a munkavállaló a referencia-időpontig
+      nem lépett ki. Hiányzó EmpID vagy StartDate esetén a rekord nem számítható be.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "teljes vállalati létszám meghatározása"
+      - "csoportok létszámának összehasonlítása"
+      - "időbeli létszámváltozás vizsgálata"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Nagyobb állományi létszám."
+      lower_value_meaning: "Kisebb állományi létszám."
+
+    limitations:
+      - >-
+        A történeti szervezeti bontás a jelenlegi employee-jellemzőket használja,
+        mert szervezeti változástörténet nem áll rendelkezésre.
+      - "A mutató személyeket számol, nem teljes munkaidős egyenértéket (FTE)."
+
+    causal_warning: >-
+      A létszám változása önmagában nem mutatja meg annak okát.
+
+    documentation_status: "confirmed"
+
+
+  - name: "OpeningHeadcount"
+    label: "Nyitónapi létszám"
+    group: "workforce"
+
+    description: >-
+      A vizsgált időszak első napján állományban lévő munkavállalók száma.
+
+    source_datasets:
+      - "employee"
+
+    required_fields:
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "StartDate"
+        expected_type: "date"
+      - dataset: "employee"
+        field: "ExitDate"
+        expected_type: "date_or_null"
+
+    formula: >-
+      COUNT(DISTINCT EmpID), ahol StartDate <= period_start és
+      (ExitDate üres vagy ExitDate > period_start).
+
+    numerator: >-
+      A vizsgált időszak első napján állományban lévő egyedi munkavállalók száma.
+
+    denominator: "Nincs."
+    unit: "fő"
+
+    time_reference: >-
+      A felhasználó által megadott időszak első napja. Előre definiált napi,
+      havi vagy éves időszak, illetve tetszőleges kezdő- és záródátum is
+      használható.
+
+    organizational_filtering: >-
+      A szám mutató a kiválasztott szervezeti vagy munkavállalói csoportra
+      szűrve is kiszámítható.
+
+    missing_value_handling: >-
+      Hiányzó StartDate esetén a rekord kizárandó. A hiányzó ExitDate azt
+      jelenti, hogy a munkavállaló az adatállomány záródátumáig nem lépett ki.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "napi, havi és éves létszámelemzés"
+      - "idősoros elemzés"
+      - "csoportok összehasonlítása"
+      - "fluktuációs mutatók számítása"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Nagyobb időszak eleji létszám."
+      lower_value_meaning: "Kisebb időszak eleji létszám."
+
+    limitations:
+      - "A mutató létszámot, nem teljes munkaidős egyenértéket mér."
+      - "Az időszak első napján kilépő munkavállaló már nem számít állományban lévőnek."
+
+    causal_warning: >-
+      A létszám nagysága vagy változása önmagában nem mutatja meg annak okát.
+
+    documentation_status: "confirmed"
+
+  - name: "AverageHeadcount"
+    label: "Napi átlagos létszám"
+    group: "workforce"
+
+    description: >-
+      A vizsgált időszak minden naptári napjára kiszámított
+      állományi létszám számtani átlaga.
+
+    source_datasets:
+      - "employee"
+
+    required_fields:
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "StartDate"
+        expected_type: "date"
+      - dataset: "employee"
+        field: "ExitDate"
+        expected_type: "date_or_null"
+
+    formula: >-
+      Minden naptári napra COUNT(DISTINCT EmpID), ahol StartDate <= day
+      és (ExitDate üres vagy ExitDate > day), majd a napi létszámok
+      összege / a vizsgált időszak naptári napjainak száma.
+
+    numerator: "A vizsgált időszak napi létszámainak összege."
+    denominator: "A vizsgált időszak naptári napjainak száma."
+    unit: "fő"
+
+    time_reference: >-
+      A felhasználó által megadott teljes időszak, mindkét határnapot
+      beleszámítva. Előre definiált vagy tetszőleges időszak is használható.
+
+    organizational_filtering: >-
+      A számlálást minden napon ugyanarra a kiválasztott szerevezeti vagy
+      munkavállalói csoportra kell szűrni.
+
+    missing_value_handling: >-
+      Hiányzó StartDate esetén a rekord kizárandó. A hiányzó ExitDate azt
+      jelenti, hogy a munkavállaló az adatállomány záródátumáig nem lépett ki.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "időszaki átlagos létszám"
+      - "idősoros létszámelemzés"
+      - "csoportok összehasonlítása"
+      - "fluktuációs mutatók nevezője"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Nagyobb átlagos állományi létszám."
+      lower_value_meaning: "Kisebb átlagos állományi létszám."
+
+    limitations:
+      - "A mutató létszámot, nem teljes munkaidős egyenértéket mér."
+      - "A kilépés napján a munkavállaló már nem számít állományban lévőnek."
+
+    causal_warning: >-
+      Az átlagos létszám változása önmagában nem mutatja meg a változás okát.
+
+    method_selection_rule: >-
+      Ez az alapértelmezett átlagos létszámmutató. Az AI a napi
+      létszámok átlagát használja, ha a felhasználó nem kér más módszert.
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+
+  - name: "OpeningClosingAverageHeadcount"
+    label: "Nyitó- és zárólétszám átlaga"
+    group: "workforce"
+
+    description: >-
+      A vizsgált időszak nyitó- és zárólétszámának számtani átlaga.
+
+    required_metrics:
+      - "OpeningHeadcount"
+      - "ClosingHeadcount"
+
+    numerator: "A nyitó- és zárólétszám összege."
+    denominator: "2"
+
+    formula: "(OpeningHeadcount + ClosingHeadcount) / 2"
+    unit: "fő"
+
+    usage: >- 
+      Önálló, egyszerűsített létszámmutató. Csak a felhasználó
+      kifejezett kérésére használható, vagy az AverageHeadcount
+      kiegészítő összehasonlításaként ajánlható fel, különösen akkor,
+      ha a két mutató közötti eltérés jelentős. Az AverageHeadcount
+      helyettesítésére nem használható.
+
+    limitations:
+      - "Nem veszi figyelembe azokat a létszámváltozásokat, amelyek az időszak 
+        két határnapja között történtek, de a zárólétszámra már nem voltak hatással."
+
+    ai_rule: >-
+      Nem helyettesítheti az AverageHeadcount mutatót, és
+      fluktuációs mutató nevezőjeként alapértelmezetten nem használható.
+
+    time_reference: >-
+      A felhasználó által megadott időszak első és utolsó napja.
+
+    organizational_filtering: >-
+      A nyitó- és zárólétszámot ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell kiszámítani.
+
+    minimum_group_size: 4
+
+    significant_difference_rule: >-
+      Az AverageHeadcount értékétől való eltérés akkor jelentős, ha
+      abszolút relatív mértéke legalább 2 százalék.
+
+    allowed_uses:
+      - "egyszerűsített átlagos létszám kifejezett kérésre"
+      - "összehasonlítás a napi átlagos létszámmal"
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+  - name: "HireCount"
+    label: "Belépők száma"
+    group: "workforce"
+
+    description: >-
+      A vizsgált időszakban állományba lépett munkavállalók száma.
+
+    source_datasets:
+      - "employee"
+
+    required_fields:
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "StartDate"
+        expected_type: "date"
+
+    formula: >-
+      COUNT(DISTINCT EmpID), ahol period_start <= StartDate <= period_end.
+
+    numerator: "A vizsgált időszakban belépett egyedi munkavállalók száma."
+    denominator: "Nincs."
+    unit: "fő"
+
+    time_reference: >-
+      A felhasználó által megadott teljes időszak, mindkét határnapot
+      beleszámítva.
+
+    organizational_filtering: >-
+      A mutató a kiválasztott szervezeti vagy munkavállalói csoportra
+      szűrve is kiszámítható.
+
+    missing_value_handling: >-
+      Hiányzó StartDate esetén a rekord nem sorolható időszakhoz,
+      ezért kizárandó.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "létszámváltozás elemzése"
+      - "idősoros elemzés"
+      - "csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Több belépő az adott időszakban."
+      lower_value_meaning: "Kevesebb belépő az adott időszakban."
+
+    limitations:
+      - "Az adatállomány munkavállalónként egy StartDate értéket tartalmaz."
+      - "Az esetleges újrafelvételek külön eseményként nem vizsgálhatók."
+
+    causal_warning: >-
+      A belépők számából önmagában nem állapítható meg a változás oka.
+
+    documentation_status: "confirmed"
+
+  - name: "ExitCount"
+    label: "Kilépők száma"
+    group: "workforce"
+
+    description: >-
+      A vizsgált időszakban kilépett munkavállalók száma, a kilépés
+      okától vagy típusától függetlenül.
+
+    source_datasets:
+      - "employee"
+
+    required_fields:
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "ExitDate"
+        expected_type: "date_or_null"
+
+    formula: >-
+      COUNT(DISTINCT EmpID), ahol period_start <= ExitDate <= period_end.
+
+    numerator: "A vizsgált időszakban kilépett egyedi munkavállalók száma."
+    denominator: "Nincs."
+    unit: "fő"
+
+    time_reference: >-
+      A felhasználó által megadott teljes időszak, mindkét határnapot
+      beleszámítva.
+
+    organizational_filtering: >-
+      A mutató a kiválasztott szervezeti vagy munkavállalói csoportra
+      szűrve is kiszámítható.
+
+    missing_value_handling: >-
+      A hiányzó ExitDate azt jelenti, hogy a munkavállaló az adatállomány
+      záródátumáig nem lépett ki, ezért nem számít bele.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "létszámváltozás elemzése"
+      - "idősoros elemzés"
+      - "csoportok összehasonlítása"
+      - "fluktuációs mutatók számlálója"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Több kilépő az adott időszakban."
+      lower_value_meaning: "Kevesebb kilépő az adott időszakban."
+
+    limitations:
+      - "A mutató minden kilépést tartalmaz, a nyugdíjazást is."
+      - "Az adatállomány az esetleges ismételt munkaviszonyokat nem kezeli külön."
+
+    causal_warning: >-
+      A kilépők számából önmagában nem állapítható meg a kilépések oka.
+
+    documentation_status: "confirmed"
+
+  - name: "TotalTurnoverRate"
+    label: "Teljes fluktuációs ráta"
+    group: "turnover"
+
+    description: >-
+      A vizsgált időszakban kilépett munkavállalók aránya az időszak
+      napi átlagos létszámához viszonyítva. A nyugdíjazásokat is tartalmazza.
+
+    required_metrics:
+      - "ExitCount"
+      - "AverageHeadcount"
+
+    formula: "(ExitCount / AverageHeadcount) * 100"
+
+    numerator: >-
+      A vizsgált időszak összes kilépője, beleértve a Voluntarily Terminated,
+      Terminated for Cause és Retired státuszú munkavállalókat.
+
+    denominator: "A vizsgált időszak napi átlagos létszáma."
+    unit: "százalék"
+
+    time_reference: >-
+      A felhasználó által megadott teljes időszak, mindkét határnapot
+      beleszámítva. A mutató nincs automatikusan évesítve.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell kiszámítani.
+
+    zero_denominator_handling: >-
+      Nulla átlagos létszám esetén a mutató nem számítható ki.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "időszakos fluktuáció elemzése"
+      - "idősoros elemzés"
+      - "csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Nagyobb teljes kilépési arány."
+      lower_value_meaning: "Kisebb teljes kilépési arány."
+
+    limitations:
+      - "A mutató a nyugdíjazásokat is tartalmazza."
+      - "Eltérő hosszúságú időszakok közvetlenül nem hasonlíthatók össze."
+      - "A mutató nem különbözteti meg a kilépés típusait."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A fluktuációs ráta önmagában nem magyarázza meg a kilépések okát.
+
+    documentation_status: "confirmed"
+
+  - name: "VoluntaryTurnoverRate"
+    label: "Önkéntes fluktuációs ráta"
+    group: "turnover"
+
+    description: >-
+      Az önkéntesen kilépett munkavállalók aránya a vizsgált időszak
+      napi átlagos létszámához viszonyítva.
+
+    source_datasets:
+      - "employee"
+
+    required_fields:
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "ExitDate"
+        expected_type: "date_or_null"
+      - dataset: "employee"
+        field: "EmployeeStatus"
+        expected_type: "string"
+
+    required_metrics:
+      - "AverageHeadcount"
+
+    formula: >-
+      A period_start <= ExitDate <= period_end és
+      EmployeeStatus = "Voluntarily Terminated" feltételnek megfelelő
+      egyedi munkavállalók száma / AverageHeadcount * 100.
+
+    numerator: "A vizsgált időszakban önkéntesen kilépett munkavállalók száma."
+    denominator: "A vizsgált időszak napi átlagos létszáma."
+    unit: "százalék"
+
+    time_reference: >-
+      A felhasználó által megadott teljes időszak, mindkét határnapot
+      beleszámítva. A mutató nincs automatikusan évesítve.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell kiszámítani.
+
+    zero_denominator_handling: >-
+      Nulla átlagos létszám esetén a mutató nem számítható ki.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "önkéntes fluktuáció elemzése"
+      - "idősoros elemzés"
+      - "csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Nagyobb önkéntes kilépési arány."
+      lower_value_meaning: "Kisebb önkéntes kilépési arány."
+
+    limitations:
+      - "A nyugdíjazás és a munkáltató által kezdeményezett kilépés nem tartozik ide."
+      - "Eltérő hosszúságú időszakok közvetlenül nem hasonlíthatók össze."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      Az önkéntes fluktuációs ráta önmagában nem magyarázza meg a kilépések okát.
+
+    documentation_status: "confirmed"
+
+  - name: "InvoluntaryTurnoverRate"
+    label: "Nem önkéntes fluktuációs ráta"
+    group: "turnover"
+
+    description: >-
+      A munkáltató által megszüntetett munkaviszonyok aránya a vizsgált
+      időszak napi átlagos létszámához viszonyítva.
+
+    source_datasets:
+      - "employee"
+
+    required_fields:
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "ExitDate"
+        expected_type: "date_or_null"
+      - dataset: "employee"
+        field: "EmployeeStatus"
+        expected_type: "string"
+
+    required_metrics:
+      - "AverageHeadcount"
+
+    formula: >-
+      A period_start <= ExitDate <= period_end és
+      EmployeeStatus = "Terminated for Cause" feltételnek megfelelő
+      egyedi munkavállalók száma / AverageHeadcount * 100.
+
+    numerator: >-
+      A vizsgált időszakban Terminated for Cause státusszal kilépett
+      munkavállalók száma.
+    denominator: "A vizsgált időszak napi átlagos létszáma."
+    unit: "százalék"
+
+    time_reference: >-
+      A felhasználó által megadott teljes időszak, mindkét határnapot
+      beleszámítva. A mutató nincs automatikusan évesítve.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell kiszámítani.
+
+    zero_denominator_handling: >-
+      Nulla átlagos létszám esetén a mutató nem számítható ki.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "nem önkéntes fluktuáció elemzése"
+      - "idősoros elemzés"
+      - "csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Nagyobb munkáltatói megszüntetési arány."
+      lower_value_meaning: "Kisebb munkáltatói megszüntetési arány."
+
+    query_aliases:
+      - "elbocsátás"
+      - "elbocsájtás"
+      - "kirúgás"
+      - "elküldés"
+      - "munkáltatói felmondás"
+
+    ambiguous_terms:
+      leépítés: >-
+        A kifejezés a nem önkéntes kilépésekhez irányítható, de az adatállományból
+        nem állapítható meg, hogy a megszüntetés ténylegesen létszámleépítés miatt történt-e.
+
+    limitations:
+      - "A mutató kizárólag a Terminated for Cause státuszú kilépéseket tartalmazza."
+      - "A nyugdíjazás és az önkéntes kilépés nem tartozik ide."
+      - "Eltérő hosszúságú időszakok közvetlenül nem hasonlíthatók össze."
+      - "A közös megegyezéssel történő munkaviszony-megszűnés nincs külön rögzítve."
+
+    unavailable_exit_categories:
+      - name: "Mutual Agreement"
+        label: "Közös megegyezés"
+        handling: >-
+          A közös megegyezést bármelyik fél kezdeményezheti, ezért az
+          önkéntes vagy nem önkéntes besorolás csak a kezdeményező fél
+          külön rögzítése alapján lenne lehetséges. Az adatállomány ezt
+          nem tartalmazza, ezért a kategória nem elemezhető és nem
+          sorolható automatikusan egyik fluktuációtípushoz sem.
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A mutató önmagában nem magyarázza meg a munkaviszonyok megszüntetésének okát.
+
+    documentation_status: "confirmed"
+
+  - name: "RetirementExitRate"
+    label: "Nyugdíjazási kilépési ráta"
+    group: "turnover"
+
+    description: >-
+      A nyugdíjazással kilépett munkavállalók aránya a vizsgált időszak
+      napi átlagos létszámához viszonyítva.
+
+    source_datasets:
+      - "employee"
+
+    required_fields:
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "ExitDate"
+        expected_type: "date_or_null"
+      - dataset: "employee"
+        field: "EmployeeStatus"
+        expected_type: "string"
+
+    required_metrics:
+      - "AverageHeadcount"
+
+    formula: >-
+      A period_start <= ExitDate <= period_end és EmployeeStatus = "Retired"
+      feltételnek megfelelő egyedi munkavállalók száma /
+      AverageHeadcount * 100.
+
+    numerator: >-
+      A vizsgált időszakban Retired státusszal kilépett munkavállalók száma.
+
+    denominator: "A vizsgált időszak napi átlagos létszáma."
+    unit: "százalék"
+
+    time_reference: >-
+      A felhasználó által megadott teljes időszak, mindkét határnapot
+      beleszámítva. A mutató nincs automatikusan évesítve.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell kiszámítani.
+
+    zero_denominator_handling: >-
+      Nulla átlagos létszám esetén a mutató nem számítható ki.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "nyugdíjazási kilépések elemzése"
+      - "idősoros elemzés"
+      - "csoportok összehasonlítása"
+      - "a teljes fluktuáció összetevőinek vizsgálata"
+
+    reconciliation_rule: >-
+      A VoluntaryTurnoverRate, InvoluntaryTurnoverRate és
+      RetirementExitRate összege a TotalTurnoverRate értékével egyezik,
+      a megjelenített értékeknél esetleges kerekítési eltéréssel.
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Nagyobb nyugdíjazási kilépési arány."
+      lower_value_meaning: "Kisebb nyugdíjazási kilépési arány."
+
+    limitations:
+      - "A mutató csak a Retired státusszal rögzített kilépéseket tartalmazza."
+      - "Eltérő hosszúságú időszakok közvetlenül nem hasonlíthatók össze."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A mutató önmagában nem jelzi a nyugdíjazások szervezeti hatását.
+
+    documentation_status: "confirmed"
+
+  - name: "Rolling12MonthTurnoverRate"
+    label: "Gördülő 12 havi fluktuációs ráta"
+    group: "turnover"
+
+    description: >-
+      A referencia-dátummal végződő megelőző 12 hónap teljes
+      fluktuációs rátája, a nyugdíjazásokat is beleértve.
+
+    required_metrics:
+      - "ExitCount"
+      - "AverageHeadcount"
+
+    formula: >-
+      A gördülő 12 hónapos időszak ExitCount értéke /
+      ugyanezen időszak AverageHeadcount értéke * 100.
+
+    numerator: >-
+      A gördülő 12 hónapos időszakban kilépett munkavállalók száma,
+      beleértve a Voluntarily Terminated, Terminated for Cause és
+      Retired státuszú kilépőket.
+
+    denominator: "A gördülő 12 hónapos időszak napi átlagos létszáma."
+    unit: "százalék"
+
+    time_reference: >-
+      Az időszak a referencia-dátumot és az azt megelőző 12 hónapot
+      tartalmazza. Például 2026-06-30 esetén:
+      2025-07-01–2026-06-30.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell kiszámítani.
+
+    zero_denominator_handling: >-
+      Nulla átlagos létszám esetén a mutató nem számítható ki.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "fluktuációs trend elemzése"
+      - "szezonalitás hatásának mérséklése"
+      - "szervezeti csoportok összehasonlítása"
+      - "havi gördülő idősor készítése"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Nagyobb 12 havi teljes kilépési arány."
+      lower_value_meaning: "Kisebb 12 havi teljes kilépési arány."
+
+    limitations:
+      - "A mutató a nyugdíjazásokat is tartalmazza."
+      - "Teljes 12 havi előzmény nélkül nem számítható ki."
+      - "Az egymást követő értékek időszakai nagyrészt átfedik egymást."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A gördülő ráta változása önmagában nem magyarázza meg a fluktuáció okát.
+
+    documentation_status: "confirmed"
+
+
+  - name: "AverageEngagementScore"
+    label: "Átlagos elkötelezettségi pontszám"
+    group: "engagement"
+
+    description: >-
+      A válaszadók EngagementScore értékeinek számtani átlaga
+      egy adott felmérési hullámban.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EngagementScore"
+        expected_type: "integer"
+
+    formula: >-
+      Az érvényes EngagementScore értékek összege /
+      az érvényes válaszok száma.
+
+    numerator: "Az érvényes EngagementScore értékek összege."
+    denominator: "Az érvényes EngagementScore válaszok száma."
+    unit: "pont az 1–5-ös skálán"
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Ha a felhasználó nem ad meg hullámot vagy időszakot, a legutolsó
+      elérhető felmérési hullámot kell használni. Több hullám esetén
+      az eredményeket hullámonként kell bemutatni, nem összevont átlagként.
+
+    organizational_filtering: >-
+      A válaszadókat az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján lehet csoportosítani.
+
+    missing_value_handling: >-
+      A hiányzó EngagementScore értékek kimaradnak a számításból.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "felmérési hullámok összehasonlítása"
+      - "idősoros elemzés"
+      - "munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Magasabb önbevalláson alapuló elkötelezettség."
+      lower_value_meaning: "Alacsonyabb önbevalláson alapuló elkötelezettség."
+
+    default_for_analysis: false
+    usage_rule: >-
+      Csak a felhasználó kifejezett kérésére használható elemzési
+      vagy összehasonlítási mutatóként.
+
+    limitations:
+      - "A mutató egyetlen kérdés átlagértéke, nem összetett engagement-index."
+      - "Az eltérő válaszadói összetétel befolyásolhatja a hullámok összehasonlítását."
+      - "Az átlag mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 2
+
+    causal_warning: >-
+      A csoportok vagy hullámok közötti eltérés önmagában nem bizonyít
+      oksági kapcsolatot.
+
+    documentation_status: "confirmed"
+
+
+
+  - name: "AverageEngagementIndex"
+    label: "Elkötelezettségi index"
+    group: "engagement"
+
+    description: >-
+      Az AverageEngagementScore lineárisan 0–100-as skálára
+      átszámított értéke.
+
+    required_metrics:
+      - "AverageEngagementScore"
+
+    formula: "((AverageEngagementScore - 1) / 4) * 100"
+
+    scale_mapping:
+      1: 0
+      2: 25
+      3: 50
+      4: 75
+      5: 100
+
+    unit: "indexpont a 0–100-as skálán"
+    default_for_analysis: true
+
+    usage_rule: >-
+      Elkötelezettségi elemzésnél alapértelmezetten ezt a mutatót kell
+      használni, kivéve, ha a felhasználó kifejezetten az 1–5-ös
+      átlagpontszámot kéri.
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    minimum_group_size: 4
+
+    interpretation:
+      result_type: "calculated_index"
+      higher_value_meaning: "Magasabb önbevalláson alapuló elkötelezettség."
+      lower_value_meaning: "Alacsonyabb önbevalláson alapuló elkötelezettség."
+
+    limitations:
+      - "A 0–100-as érték az 1–5-ös átlag lineáris átskálázása."
+      - "Nem százalékos arány és nem eNPS."
+      - "Az index mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A csoportok vagy hullámok közötti eltérés önmagában nem bizonyít
+      oksági kapcsolatot.
+
+    documentation_status: "confirmed"
+
+
+  - name: "AverageSatisfactionScore"
+    label: "Átlagos munkahelyi elégedettségi pontszám"
+    group: "engagement"
+
+    description: >-
+      A válaszadók SatisfactionScore értékeinek számtani átlaga
+      egy adott felmérési hullámban.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "SatisfactionScore"
+        expected_type: "integer"
+
+    formula: >-
+      Az érvényes SatisfactionScore értékek összege /
+      az érvényes válaszok száma.
+
+    numerator: "Az érvényes SatisfactionScore értékek összege."
+    denominator: "Az érvényes SatisfactionScore válaszok száma."
+    unit: "pont az 1–5-ös skálán"
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Ha a felhasználó nem ad meg hullámot vagy időszakot, a legutolsó
+      elérhető felmérési hullámot kell használni. Több hullám esetén
+      az eredményeket hullámonként kell bemutatni, nem összevont átlagként.
+
+    organizational_filtering: >-
+      A válaszadókat az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján lehet csoportosítani.
+
+    missing_value_handling: >-
+      A hiányzó SatisfactionScore értékek kimaradnak a számításból.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "felmérési hullámok összehasonlítása"
+      - "idősoros elemzés"
+      - "munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_result"
+      higher_value_meaning: "Magasabb általános munkahelyi elégedettség."
+      lower_value_meaning: "Alacsonyabb általános munkahelyi elégedettség."
+
+    default_for_analysis: false
+    usage_rule: >-
+      Csak a felhasználó kifejezett kérésére használható elemzési
+      vagy összehasonlítási mutatóként.
+
+    limitations:
+      - "A mutató egyetlen kérdés átlagértéke, nem összetett elégedettségi index."
+      - "Az eltérő válaszadói összetétel befolyásolhatja a hullámok összehasonlítását."
+      - "Az átlag mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 2
+
+    causal_warning: >-
+      A csoportok vagy hullámok közötti eltérés önmagában nem bizonyít
+      oksági kapcsolatot.
+
+    documentation_status: "confirmed"
+
+  - name: "AverageSatisfactionIndex"
+    label: "Munkahelyi elégedettségi index"
+    group: "engagement"
+
+    description: >-
+      Az AverageSatisfactionScore lineárisan 0–100-as skálára
+      átszámított értéke.
+
+    required_metrics:
+      - "AverageSatisfactionScore"  
+    
+    formula: "((AverageSatisfactionScore - 1) / 4) * 100"
+
+    scale_mapping:
+      1: 0
+      2: 25
+      3: 50
+      4: 75
+      5: 100
+
+    unit: "indexpont a 0–100-as skálán"
+    default_for_analysis: true
+
+    usage_rule: >-
+      Munkahelyi elégedettségi elemzésnél alapértelmezetten ezt a mutatót
+      kell használni, kivéve, ha a felhasználó kifejezetten az 1–5-ös
+      átlagpontszámot kéri.
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    organizational_filtering: >-
+      A mutató az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján csoportosítva is kiszámítható.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "felmérési hullámok összehasonlítása"
+      - "idősoros elemzés"
+      - "munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_index"
+      higher_value_meaning: "Magasabb általános munkahelyi elégedettség."
+      lower_value_meaning: "Alacsonyabb általános munkahelyi elégedettség."
+
+    limitations:
+      - "A 0–100-as érték az 1–5-ös átlag lineáris átskálázása."
+      - "Nem a pozitív válaszok százalékos aránya."
+      - "Az index mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A csoportok vagy hullámok közötti eltérés önmagában nem bizonyít
+      oksági kapcsolatot.
+
+    documentation_status: "confirmed"
+
+  - name: "AverageWorkLifeBalanceScore"
+    label: "Átlagos work–life balance pontszám"
+    group: "engagement"
+
+    description: >-
+      A válaszadók WorkLifeBalanceScore értékeinek számtani átlaga
+      egy adott felmérési hullámban.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "WorkLifeBalanceScore"
+        expected_type: "integer"
+
+    formula: >-
+      Az érvényes WorkLifeBalanceScore értékek összege /
+      az érvényes válaszok száma.
+
+    numerator: "Az érvényes WorkLifeBalanceScore értékek összege."
+    denominator: "Az érvényes WorkLifeBalanceScore válaszok száma."
+    unit: "pont az 1–5-ös skálán"
+
+    default_for_analysis: false
+
+    usage_rule: >-
+      Csak a felhasználó kifejezett kérésére használható elemzési
+      vagy összehasonlítási mutatóként.
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    missing_value_handling: >-
+      A hiányzó WorkLifeBalanceScore értékek kimaradnak a számításból.
+
+    minimum_group_size: 4
+
+    limitations:
+      - "A mutató egyetlen kérdés átlagértéke."
+      - "Az átlag mellett az érvényes válaszok számát is közölni kell."
+      - "Alacsony értéke önmagában nem bizonyítja a kiégést."
+
+    rounding:
+      decimals: 2
+
+    documentation_status: "confirmed"
+
+
+
+  - name: "AverageWorkLifeBalanceIndex"
+    label: "Work–life balance index"
+    group: "engagement"
+
+    description: >-
+      Az AverageWorkLifeBalanceScore lineárisan 0–100-as skálára
+      átszámított értéke.
+
+    required_metrics:
+      - "AverageWorkLifeBalanceScore"
+
+    formula: "((AverageWorkLifeBalanceScore - 1) / 4) * 100"
+
+    scale_mapping:
+      1: 0
+      2: 25
+      3: 50
+      4: 75
+      5: 100
+
+    unit: "indexpont a 0–100-as skálán"
+    default_for_analysis: true
+
+    usage_rule: >-
+      Work–life balance elemzésnél alapértelmezetten ezt a mutatót kell
+      használni, kivéve, ha a felhasználó kifejezetten az 1–5-ös
+      átlagpontszámot kéri.
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    organizational_filtering: >-
+      A mutató az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján csoportosítva is kiszámítható.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "felmérési hullámok összehasonlítása"
+      - "idősoros elemzés"
+      - "munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_index"
+      higher_value_meaning: "Kedvezőbb érzékelt munka–magánélet egyensúly."
+      lower_value_meaning: "Kedvezőtlenebb érzékelt munka–magánélet egyensúly."
+
+    limitations:
+      - "A 0–100-as érték az 1–5-ös átlag lineáris átskálázása."
+      - "Nem a kedvező válaszok százalékos aránya."
+      - "Alacsony értéke önmagában nem bizonyítja a kiégést."
+      - "Az index mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A csoportok vagy hullámok közötti eltérés önmagában nem bizonyít
+      oksági kapcsolatot.
+
+    documentation_status: "confirmed"
+
+
+
+  - name: "CompositeEngagementIndex"
+    label: "Összesített engagement-index"
+    group: "engagement"
+
+    description: >-
+      Az elkötelezettségi, munkahelyi elégedettségi és work–life balance
+      index egyenlő súlyú számtani átlaga.
+
+    required_metrics:
+      - "AverageEngagementIndex"
+      - "AverageSatisfactionIndex"
+      - "AverageWorkLifeBalanceIndex"
+
+    formula: >-
+      (AverageEngagementIndex + AverageSatisfactionIndex + AverageWorkLifeBalanceIndex) / 3.
+
+    component_weights:
+      AverageEngagementIndex: 0.333333
+      AverageSatisfactionIndex: 0.333333
+      AverageWorkLifeBalanceIndex: 0.333333
+
+    unit: "indexpont a 0–100-as skálán"
+
+    default_for_analysis: false
+
+    usage_rule: >-
+      Akkor használható, ha a felhasználó összesített, kombinált vagy
+      átfogó engagement-indexet kér. Az általános „engagement” kifejezés
+      alapértelmezetten az AverageEngagementIndex mutatóra vonatkozik.
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    missing_value_handling: >-
+      Az összesített index csak akkor számítható ki, ha mindhárom komponensindex
+      ugyanarra a válaszadói körre rendelkezésre áll.
+
+    organizational_filtering: >-
+      A mutató az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján csoportosítva is kiszámítható.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "átfogó engagement-helyzet értékelése"
+      - "felmérési hullámok összehasonlítása"
+      - "munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_composite_index"
+      higher_value_meaning: "Kedvezőbb összesített munkavállalói megítélés."
+      lower_value_meaning: "Kedvezőtlenebb összesített munkavállalói megítélés."
+
+    limitations:
+      - "A három összetevő azonos súlyt kap."
+      - "Az index saját, belső mutató; nem külsőleg validált mérőeszköz."
+      - "Az összetevőket külön is be kell mutatni, ha jelentősen eltérnek."
+      - "Az index mellett az érvényes válaszadók számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      Az index változása önmagában nem magyarázza meg annak okát.
+
+    documentation_status: "confirmed"
+
+
+  - name: "EngagementTop2BoxRate"
+    label: "Magas elkötelezettségű válaszok aránya"
+    group: "engagement"
+
+    description: >-
+      A 4-es vagy 5-ös EngagementScore választ adók aránya.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "EngagementScore"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+
+    organizational_filtering: >-
+      A válaszadókat az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján lehet csoportosítani.
+
+    formula: >-
+      COUNT(EngagementScore IN [4, 5]) /
+      COUNT(valid EngagementScore) * 100.
+
+    numerator: "A 4-es vagy 5-ös választ adók száma."
+    denominator: "Az érvényes EngagementScore válaszok száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Általános elemzésnél a megfelelő 0–100-as index használandó.
+      Pozitív, kedvező vagy Top2, illetve negatív, kedvezőtlen vagy Low2
+      válaszokra vonatkozó kérdésnél ez a mutató az alapértelmezett.
+
+    time_reference: "Az adott felmérési hullám." 
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    missing_value_handling: >-
+      A hiányzó EngagementScore értékek kimaradnak a számlálóból
+      és a nevezőből.
+
+    minimum_group_size: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Low2, sem a Top2 kategóriába."
+      - "A mutató nem azonos a 0–100-as elkötelezettségi indexszel."
+      - "Az arány mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      Az alacsonyabb Top2 arány önmagában nem magyarázza meg az alacsony
+      elkötelezettség okát.
+
+    documentation_status: "confirmed"
+
+
+
+  - name: "EngagementLow2BoxRate"
+    label: "Alacsony elkötelezettségű válaszok aránya"
+    group: "engagement"
+
+    description: >-
+      Az 1-es vagy 2-es EngagementScore választ adók aránya.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "EngagementScore"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+
+    organizational_filtering: >-
+      A válaszadókat az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján lehet csoportosítani.
+
+    formula: >-
+      COUNT(EngagementScore IN [1, 2]) /
+      COUNT(valid EngagementScore) * 100.
+
+    numerator: "Az 1-es vagy 2-es választ adók száma."
+    denominator: "Az érvényes EngagementScore válaszok száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Általános elemzésnél a megfelelő 0–100-as index használandó.
+      Pozitív, kedvező vagy Top2, illetve negatív, kedvezőtlen vagy Low2
+      válaszokra vonatkozó kérdésnél ez a mutató az alapértelmezett.
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    missing_value_handling: >-
+      A hiányzó EngagementScore értékek kimaradnak a számlálóból
+      és a nevezőből.
+
+    minimum_group_size: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Low2, sem a Top2 kategóriába."
+      - "A mutató nem azonos a 0–100-as elkötelezettségi indexszel."
+      - "Az arány mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A magasabb Low2 arány önmagában nem magyarázza meg az alacsony
+      elkötelezettség okát.
+
+    documentation_status: "confirmed"
+
+  - name: "SatisfactionTop2BoxRate"
+    label: "Magas elégedettségű válaszok aránya"
+    group: "engagement"
+
+    description: >-
+      A 4-es vagy 5-ös SatisfactionScore választ adók aránya.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "SatisfactionScore"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+
+    organizational_filtering: >-
+      A válaszadókat az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján lehet csoportosítani.
+
+    formula: >-
+      COUNT(SatisfactionScore IN [4, 5]) /
+      COUNT(valid SatisfactionScore) * 100.
+
+    numerator: "A 4-es vagy 5-ös választ adók száma."
+    denominator: "Az érvényes SatisfactionScore válaszok száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Általános elemzésnél a megfelelő 0–100-as index használandó.
+      Pozitív, kedvező vagy Top2, illetve negatív, kedvezőtlen vagy Low2
+      válaszokra vonatkozó kérdésnél ez a mutató az alapértelmezett.
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    missing_value_handling: >-
+      A hiányzó SatisfactionScore értékek kimaradnak a számlálóból
+      és a nevezőből.
+
+    minimum_group_size: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Low2, sem a Top2 kategóriába."
+      - "A mutató nem azonos a 0–100-as elégedettségi indexszel."
+      - "Az arány mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      Az alacsonyabb Top2 arány önmagában nem magyarázza meg az alacsony
+      elégedettség okát.
+
+    documentation_status: "confirmed"
+
+
+  - name: "SatisfactionLow2BoxRate"
+    label: "Alacsony elégedettségű válaszok aránya"
+    group: "engagement"
+
+    description: >-
+      Az 1-es vagy 2-es SatisfactionScore választ adók aránya.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "SatisfactionScore"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+
+    organizational_filtering: >-
+      A válaszadókat az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján lehet csoportosítani.
+
+    formula: >-
+      COUNT(SatisfactionScore IN [1, 2]) /
+      COUNT(valid SatisfactionScore) * 100.
+
+    numerator: "Az 1-es vagy 2-es választ adók száma."
+    denominator: "Az érvényes SatisfactionScore válaszok száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Általános elemzésnél a megfelelő 0–100-as index használandó.
+      Pozitív, kedvező vagy Top2, illetve negatív, kedvezőtlen vagy Low2
+      válaszokra vonatkozó kérdésnél ez a mutató az alapértelmezett.
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    missing_value_handling: >-
+      A hiányzó SatisfactionScore értékek kimaradnak a számlálóból
+      és a nevezőből.
+
+    minimum_group_size: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Low2, sem a Top2 kategóriába."
+      - "A mutató nem azonos a 0–100-as elégedettségi indexszel."
+      - "Az arány mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A magasabb Low2 arány önmagában nem magyarázza meg az alacsony
+      elégedettség okát.
+
+    documentation_status: "confirmed"
+
+  - name: "WorkLifeBalanceTop2BoxRate"
+    label: "Kedvező work–life balance válaszok aránya"
+    group: "engagement"
+
+    description: >-
+      A 4-es vagy 5-ös WorkLifeBalanceScore választ adók aránya.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "WorkLifeBalanceScore"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+
+
+    organizational_filtering: >-
+      A válaszadókat az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján lehet csoportosítani.
+
+    formula: >-
+      COUNT(WorkLifeBalanceScore IN [4, 5]) /
+      COUNT(valid WorkLifeBalanceScore) * 100.
+
+    numerator: "A 4-es vagy 5-ös választ adók száma."
+    denominator: "Az érvényes WorkLifeBalanceScore válaszok száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Általános elemzésnél a megfelelő 0–100-as index használandó.
+      Pozitív, kedvező vagy Top2, illetve negatív, kedvezőtlen vagy Low2
+      válaszokra vonatkozó kérdésnél ez a mutató az alapértelmezett.
+
+    time_reference: "Az adott felmérési hullám." 
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    missing_value_handling: >-
+      A hiányzó WorkLifeBalanceScore értékek kimaradnak a számlálóból
+      és a nevezőből.
+
+    minimum_group_size: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Low2, sem a Top2 kategóriába."
+      - "A mutató nem azonos a 0–100-as Work Life Balance indexszel."
+      - "Az arány mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      Az alacsonyabb Top2 arány önmagában nem magyarázza meg az alacsony
+      munka-magánélet egyensúly okát.
+
+    documentation_status: "confirmed"
+
+
+
+  - name: "WorkLifeBalanceLow2BoxRate"
+    label: "Kedvezőtlen work–life balance válaszok aránya"
+    group: "engagement"
+
+    description: >-
+      Az 1-es vagy 2-es WorkLifeBalanceScore választ adók aránya.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "WorkLifeBalanceScore"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+
+    organizational_filtering: >-
+      A válaszadókat az employee adatállomány megfelelő szervezeti vagy
+      munkavállalói jellemzői alapján lehet csoportosítani.
+
+    formula: >-
+      COUNT(WorkLifeBalanceScore IN [1, 2]) /
+      COUNT(valid WorkLifeBalanceScore) * 100.
+
+    numerator: "Az 1-es vagy 2-es választ adók száma."
+    denominator: "Az érvényes WorkLifeBalanceScore válaszok száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Általános elemzésnél a megfelelő 0–100-as index használandó.
+      Pozitív, kedvező vagy Top2, illetve negatív, kedvezőtlen vagy Low2
+      válaszokra vonatkozó kérdésnél ez a mutató az alapértelmezett.
+
+    time_reference: "Az adott felmérési hullám."
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    missing_value_handling: >-
+      A hiányzó WorkLifeBalanceScore értékek kimaradnak a számlálóból
+      és a nevezőből.
+
+    minimum_group_size: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Low2, sem a Top2 kategóriába."
+      - "A mutató nem azonos a 0–100-as munka-magánélet egyensúly indexszel."
+      - "Az arány mellett az érvényes válaszok számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A magasabb Low2 arány önmagában nem magyarázza meg az alacsony
+      munka-magánélet egyensúly okát.
+
+    documentation_status: "confirmed"
+
+  - name: "SurveyResponseRate"
+    label: "Felmérési válaszadási arány"
+    group: "engagement"
+
+    description: >-
+      Az adott felmérési hullámban válaszoló munkavállalók aránya
+      a felmérés indulásakor válaszadásra jogosult munkavállalók között.
+
+    source_datasets:
+      - "engagement"
+      - "employee"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "SurveyLaunchDate"
+        expected_type: "date"
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "StartDate"
+        expected_type: "date"
+      - dataset: "employee"
+        field: "ExitDate"
+        expected_type: "date_or_null"
+
+    formula: >-
+      Az adott hullámban válaszoló egyedi EmpID-k száma /
+      a SurveyLaunchDate napján jogosult egyedi EmpID-k száma * 100.
+
+    numerator: >-
+      Az adott SurveyWaveID hullámban érvényes választ adó egyedi
+      munkavállalók száma.
+
+    denominator: >-
+      Azok a munkavállalók, akiknél StartDate <= SurveyLaunchDate és
+      ExitDate üres vagy ExitDate > SurveyLaunchDate.
+
+    unit: "százalék"
+    default_for_analysis: true
+
+    time_reference: "Az adott felmérési hullám indulási dátuma."
+
+    wave_selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+      Több hullám eredményeit hullámonként kell bemutatni.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell szűrni.
+
+    minimum_group_size: 4
+    minimum_respondent_count: 4
+
+    limitations:
+      - "A felmérés indulásának napján kilépő munkavállaló nem számít jogosultnak."
+      - "A válaszadási arány nem mutatja meg a nem válaszolás okát."
+      - "Az eltérő válaszadási arány befolyásolhatja a hullámok összehasonlíthatóságát."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A válaszadási arány változása önmagában nem magyarázza meg
+      az engagement-eredmények változását.
+
+    documentation_status: "confirmed"
+
+
+  - name: "EngagementIndexChange"
+    label: "Elkötelezettségi index változása"
+    group: "engagement"
+
+    description: >-
+      Két felmérési hullám AverageEngagementIndex értéke közötti
+      különbség indexpontban.
+
+    required_metrics:
+      - "AverageEngagementIndex"
+
+    formula: >-
+      AverageEngagementIndex_selected_wave -
+      AverageEngagementIndex_comparison_wave.
+
+    unit: "indexpont"
+
+    comparison_rule: >-
+      Ha a felhasználó csak egy hullámot jelöl meg, azt a közvetlenül
+      megelőző hullámmal kell összehasonlítani. Két megadott hullám
+      esetén a későbbi értékből kell kivonni a korábbit.
+
+    organizational_filtering: >-
+      Mindkét hullámot ugyanarra a szervezeti vagy 
+      munkavállalói csoportra kell szűrni.
+
+    minimum_group_size: 4
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Változásra, javulásra, romlásra vagy hullámok közötti különbségre
+      vonatkozó kérdésnél használandó.
+
+    interpretation:
+      result_type: "calculated_difference"
+      positive_value_meaning: "Az elkötelezettségi index javult."
+      negative_value_meaning: "Az elkötelezettségi index romlott."
+      zero_value_meaning: "A megjelenített pontosság mellett nem változott."
+
+    limitations:
+      - "A mutató indexpontkülönbség, nem százalékos változás."
+      - "A két hullám válaszadói köre eltérhet."
+      - "Nem ugyanazon munkavállalók egyéni változását méri."
+      - "Mindkét hullám elemszámát közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A változás önmagában nem bizonyítja, hogy azt egy adott szervezeti
+      esemény vagy beavatkozás okozta.
+
+    documentation_status: "confirmed"
+
+  - name: "SatisfactionIndexChange"
+    label: "Munkahelyi elégedettségi index változása"
+    group: "engagement"
+
+    description: >-
+      Két felmérési hullám AverageSatisfactionIndex értéke közötti
+      különbség indexpontban.
+
+    required_metrics:
+      - "AverageSatisfactionIndex"
+
+    formula: >-
+      AverageSatisfactionIndex_selected_wave -
+      AverageSatisfactionIndex_comparison_wave.
+
+    unit: "indexpont"
+
+    comparison_rule: >-
+      Ha a felhasználó csak egy hullámot jelöl meg, azt a közvetlenül
+      megelőző hullámmal kell összehasonlítani. Két megadott hullám
+      esetén a későbbi értékből kell kivonni a korábbit.
+
+    organizational_filtering: >-
+      Mindkét hullámot ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell szűrni.
+
+    minimum_group_size: 4
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Elégedettségi változásra, javulásra, romlásra vagy hullámok közötti
+      különbségre vonatkozó kérdésnél használandó.
+
+    interpretation:
+      result_type: "calculated_difference"
+      positive_value_meaning: "A munkahelyi elégedettségi index javult."
+      negative_value_meaning: "A munkahelyi elégedettségi index romlott."
+      zero_value_meaning: "A megjelenített pontosság mellett nem változott."
+
+    limitations:
+      - "A mutató indexpontkülönbség, nem százalékos változás."
+      - "A két hullám válaszadói köre eltérhet."
+      - "Nem ugyanazon munkavállalók egyéni változását méri."
+      - "Mindkét hullám elemszámát közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A változás önmagában nem bizonyítja, hogy azt egy adott szervezeti
+      esemény vagy beavatkozás okozta.
+
+    documentation_status: "confirmed"
+
+  - name: "WorkLifeBalanceIndexChange"
+    label: "Work–life balance index változása"
+    group: "engagement"
+
+    description: >-
+      Két felmérési hullám AverageWorkLifeBalanceIndex értéke közötti
+      különbség indexpontban.
+
+    required_metrics:
+      - "AverageWorkLifeBalanceIndex"
+
+    formula: >-
+      AverageWorkLifeBalanceIndex_selected_wave -
+      AverageWorkLifeBalanceIndex_comparison_wave.
+
+    unit: "indexpont"
+
+    comparison_rule: >-
+      Ha a felhasználó csak egy hullámot jelöl meg, azt a közvetlenül
+      megelőző hullámmal kell összehasonlítani. Két megadott hullám
+      esetén a későbbi értékből kell kivonni a korábbit.
+
+    organizational_filtering: >-
+      Mindkét hullámot ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell szűrni.
+
+    minimum_group_size: 4
+   
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Work–life balance változásra, javulásra, romlásra vagy hullámok közötti
+      különbségre vonatkozó kérdésnél használandó.
+
+    interpretation:
+      result_type: "calculated_difference"
+      positive_value_meaning: "A work–life balance index javult."
+      negative_value_meaning: "A work–life balance index romlott."
+      zero_value_meaning: "A megjelenített pontosság mellett nem változott."
+
+    limitations:
+      - "A mutató indexpontkülönbség, nem százalékos változás."
+      - "A két hullám válaszadói köre eltérhet."
+      - "Nem ugyanazon munkavállalók egyéni változását méri."
+      - "Mindkét hullám elemszámát közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A változás önmagában nem bizonyítja, hogy azt egy adott szervezeti
+      esemény vagy beavatkozás okozta.
+
+    documentation_status: "confirmed"
+
+  - name: "TrainingParticipationRate"
+    label: "Képzési részvételi arány"
+    group: "training"
+
+    description: >-
+      Azon munkavállalók aránya, akik a vizsgált időszakban legalább egy
+      nem törölt képzésen részt vettek.
+
+    source_datasets:
+      - "training"
+      - "employee"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "StartDate"
+        expected_type: "date"
+      - dataset: "employee"
+        field: "ExitDate"
+        expected_type: "date_or_null"
+
+    formula: >-
+      A period_start <= TrainingDate <= period_end és
+      CompletionStatus != "Cancelled" feltételnek megfelelő egyedi EmpID-k
+      száma / az időszakban legalább egy napon állományban lévő egyedi
+      EmpID-k száma * 100.
+
+    numerator: >-
+      A vizsgált időszakban legalább egy Completed vagy Incomplete
+      képzési rekorddal rendelkező egyedi munkavállalók száma.
+
+    denominator: >-
+      Azok az egyedi munkavállalók, akiknél StartDate <= period_end és
+      ExitDate üres vagy ExitDate > period_start.
+
+    unit: "százalék"
+    default_for_analysis: true
+
+    time_reference: >-
+      A képzés TrainingDate mezőjének dátuma alapján meghatározott időszak,
+      mindkét határnapot beleszámítva.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell szűrni.
+
+    missing_value_handling: >-
+      Hiányzó TrainingDate vagy CompletionStatus esetén a képzési rekord
+      kizárandó a számlálóból.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "képzési lefedettség vizsgálata"
+      - "idősoros elemzés"
+      - "munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_rate"
+      higher_value_meaning: "A munkavállalók nagyobb része vett részt képzésen."
+      lower_value_meaning: "A munkavállalók kisebb része vett részt képzésen."
+
+    limitations:
+      - "Egy munkavállaló több képzés esetén is csak egyszer szerepel a számlálóban."
+      - "A Cancelled képzési rekordok nem számítanak részvételnek."
+      - "A besorolás a képzés kezdőnapja alapján történik."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A részvételi arány önmagában nem mutatja meg a képzések eredményességét.
+
+    documentation_status: "confirmed"
+
+  - name: "TrainingCompletionRate"
+    label: "Képzési teljesítési arány"
+    group: "training"
+
+    description: >-
+      A sikeresen befejezett képzési rekordok aránya az összes nem törölt
+      képzési rekord között.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "TrainingRecordID"
+        expected_type: "string"
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+
+    formula: >-
+      COUNT(TrainingRecordID WHERE CompletionStatus = "Completed") /
+      COUNT(TrainingRecordID WHERE CompletionStatus IN ["Completed", "Incomplete"])
+      * 100.
+
+    numerator: "A Completed státuszú képzési rekordok száma."
+    denominator: >-
+      A Completed vagy Incomplete státuszú képzési rekordok száma.
+      A Cancelled rekordok kimaradnak.
+    unit: "százalék"
+
+    default_for_analysis: true
+
+    time_reference: >-
+      A képzési rekordok a TrainingDate alapján tartoznak a vizsgált
+      időszakhoz, mindkét határnapot beleszámítva.
+
+    organizational_filtering: >-
+      A mutató képzési jellemzők, illetve az employee adatállományhoz
+      kapcsolt munkavállalói csoportok szerint is kiszámítható.
+
+    missing_value_handling: >-
+      Hiányzó TrainingDate vagy CompletionStatus esetén a rekord kizárandó.
+
+    minimum_unique_employee_count: 4
+
+    allowed_uses:
+      - "képzési teljesítés elemzése"
+      - "képzési programok összehasonlítása"
+      - "idősoros elemzés"
+      - "munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_rate"
+      higher_value_meaning: "A megkezdett képzések nagyobb hányada fejeződött be."
+      lower_value_meaning: "A megkezdett képzések kisebb hányada fejeződött be."
+
+    limitations:
+      - "A Cancelled rekordok nem szerepelnek a nevezőben."
+      - "A mutató képzési rekordokat, nem egyedi munkavállalókat számol."
+      - "A besorolás a képzés kezdőnapja alapján történik."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A teljesítési arány önmagában nem mutatja meg a képzés hatását
+      vagy a megszerzett tudás munkahelyi alkalmazását.
+
+    documentation_status: "confirmed"
+
+  - name: "SuccessfulTrainingCoverage"
+    label: "Sikeres képzési lefedettség"
+    group: "training"
+
+    description: >-
+      Azon munkavállalók aránya, akik a vizsgált időszakban legalább
+      egy képzést sikeresen befejeztek.
+
+    source_datasets:
+      - "training"
+      - "employee"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+      - dataset: "employee"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "employee"
+        field: "StartDate"
+        expected_type: "date"
+      - dataset: "employee"
+        field: "ExitDate"
+        expected_type: "date_or_null"
+
+    formula: >-
+      A period_start <= TrainingDate <= period_end és
+      CompletionStatus = "Completed" feltételnek megfelelő egyedi EmpID-k
+      száma / az időszakban legalább egy napon állományban lévő egyedi
+      EmpID-k száma * 100.
+
+    numerator: >-
+      A vizsgált időszakban legalább egy Completed képzési rekorddal
+      rendelkező egyedi munkavállalók száma.
+    denominator: >-
+      Azok az egyedi munkavállalók, akiknél StartDate <= period_end és
+      ExitDate üres vagy ExitDate > period_start.
+    unit: "százalék"
+
+    default_for_analysis: true
+
+    time_reference: >-
+      A képzések a TrainingDate alapján kerülnek a vizsgált időszakba,
+      mindkét határnapot beleszámítva.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell szűrni.
+
+    missing_value_handling: >-
+      Hiányzó TrainingDate vagy CompletionStatus esetén a képzési rekord
+      kizárandó a számlálóból.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "képzési lefedettség vizsgálata"
+      - "szervezeti és munkavállalói csoportok összehasonlítása"
+      - "idősoros elemzés"
+
+    interpretation:
+      result_type: "calculated_rate"
+      higher_value_meaning: >-
+        A munkavállalók nagyobb része fejezett be legalább egy képzést.
+      lower_value_meaning: >-
+        A munkavállalók kisebb része fejezett be legalább egy képzést.
+
+    limitations:
+      - "Egy munkavállaló több sikeres képzés esetén is csak egyszer szerepel."
+      - "A mutató nem méri a teljesített képzések számát vagy minőségét."
+      - "A besorolás a képzés kezdőnapja alapján történik."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A magasabb lefedettség önmagában nem bizonyítja a képzések
+      eredményességét vagy üzleti hatását.
+
+    documentation_status: "confirmed"
+
+
+  - name: "AssessmentPassRate"
+    label: "Vizsgasikerességi arány"
+    group: "training"
+
+    description: >-
+      A sikeres vizsgaeredmények aránya az érvényes, ténylegesen
+      teljesített vizsgák között.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "TrainingResult"
+        expected_type: "string"
+
+    formula: >-
+      A period_start <= TrainingDate <= period_end és
+      TrainingResult = "Passed" feltételnek megfelelő rekordok száma /
+      a TrainingResult IN ["Passed", "Failed"] feltételnek megfelelő
+      rekordok száma * 100.
+
+    numerator: "A Passed eredményű képzési rekordok száma."
+
+    denominator: >-
+      A Passed vagy Failed eredményű képzési rekordok száma.
+      A Not Taken és Not Applicable rekordok nem részei a nevezőnek.
+
+    unit: "százalék"
+    default_for_analysis: true
+
+    time_reference: >-
+      A képzések a TrainingDate alapján kerülnek a vizsgált időszakba,
+      mindkét határnapot beleszámítva.
+
+    organizational_filtering: >-
+      A mutató képzési jellemzők, illetve az employee adatállományból
+      kapcsolt munkavállalói csoportok szerint is kiszámítható.
+
+    missing_value_handling: >-
+      Hiányzó TrainingDate vagy TrainingResult esetén a rekord kizárandó.
+
+    minimum_unique_employee_count: 4
+
+    allowed_uses:
+      - "vizsgaeredményesség elemzése"
+      - "képzési programok összehasonlítása"
+      - "munkavállalói csoportok összehasonlítása"
+      - "idősoros elemzés"
+
+    interpretation:
+      result_type: "calculated_rate"
+      higher_value_meaning: "A teljesített vizsgák nagyobb része volt sikeres."
+      lower_value_meaning: "A teljesített vizsgák kisebb része volt sikeres."
+
+    limitations:
+      - "A Not Taken és Not Applicable eredmények nem szerepelnek a számításban."
+      - "Egy munkavállaló több képzési rekorddal többször szerepelhet."
+      - "A mutató nem méri a megszerzett tudás hosszú távú alkalmazását."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A sikerességi arány eltérése önmagában nem bizonyítja a képzés,
+      az oktató vagy a résztvevők teljesítményének okát.
+
+    documentation_status: "confirmed"  
+
+  - name: "TrainingFeedbackResponseRate"
+    label: "Képzési visszajelzési arány"
+    group: "training"
+
+    description: >-
+      A visszajelzést beküldött résztvevői képzési rekordok aránya
+      az összes nem törölt képzési rekord között.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+      - dataset: "training"
+        field: "FeedbackSubmitted"
+        expected_type: "string"
+
+    formula: >-
+      A period_start <= TrainingDate <= period_end,
+      CompletionStatus != "Cancelled" és FeedbackSubmitted = "Yes"
+      feltételnek megfelelő rekordok száma / az időszak összes
+      nem Cancelled képzési rekordjának száma * 100.
+
+    numerator: >-
+      A FeedbackSubmitted = "Yes" értékű, nem törölt képzési rekordok száma.
+    denominator: >-
+      A Completed vagy Incomplete státuszú képzési rekordok száma.
+      A Cancelled rekordok nem részei a nevezőnek.
+    unit: "százalék"
+
+    default_for_analysis: true
+
+    time_reference: >-
+      A képzések a TrainingDate alapján kerülnek a vizsgált időszakba,
+      mindkét határnapot beleszámítva.
+
+    organizational_filtering: >-
+      A mutató képzési jellemzők, illetve az employee adatállományból
+      kapcsolt munkavállalói csoportok szerint is kiszámítható.
+
+    missing_value_handling: >-
+      Hiányzó TrainingDate, CompletionStatus vagy FeedbackSubmitted esetén
+      a rekord adatminőségi hibának minősül és kizárandó a számításból.
+
+    minimum_unique_employee_count: 4
+
+    allowed_uses:
+      - "visszajelzési hajlandóság elemzése"
+      - "teljesítési státuszok összehasonlítása"
+      - "képzési programok és csoportok összehasonlítása"
+      - "idősoros elemzés"
+
+    interpretation:
+      result_type: "calculated_rate"
+      higher_value_meaning: "A résztvevők nagyobb része adott visszajelzést."
+      lower_value_meaning: "A résztvevők kisebb része adott visszajelzést."
+
+    limitations:
+      - "A magasabb válaszadási arány nem jelent automatikusan jobb képzési minőséget."
+      - "Egy munkavállaló több képzés után többször szerepelhet."
+      - "A válaszadók véleménye eltérhet a nem válaszolókétól."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A visszajelzési arány eltérése önmagában nem magyarázza meg
+      a visszajelzési hajlandóság okát.
+
+    documentation_status: "confirmed"
+
+  - name: "AverageOverallSatisfactionScore"
+    label: "Átlagos képzési elégedettségi pontszám"
+    group: "training"
+
+    description: >-
+      Az érvényes OverallSatisfactionScore értékek számtani átlaga.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "OverallSatisfactionScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      Az érvényes OverallSatisfactionScore értékek összege /
+      az érvényes értékelések száma.
+
+    numerator: "Az érvényes OverallSatisfactionScore értékek összege."
+    denominator: "Az érvényes OverallSatisfactionScore értékek száma."
+    unit: "pont az 1–5-ös skálán"
+
+    default_for_analysis: false
+
+    usage_rule: >-
+      Csak a felhasználó kifejezett kérésére használható elemzési
+      vagy összehasonlítási mutatóként.
+
+    time_reference: >-
+      A képzések a TrainingDate alapján kerülnek a vizsgált időszakba.
+
+    missing_value_handling: >-
+      A hiányzó OverallSatisfactionScore értékek kimaradnak a számításból.
+
+    minimum_unique_employee_count: 4
+
+    rounding:
+      decimals: 2
+
+    documentation_status: "confirmed"
+
+  - name: "AverageOverallSatisfactionIndex"
+    label: "Átlagos képzési elégedettségi index"
+    group: "training"
+
+    required_metrics:
+      - "AverageOverallSatisfactionScore"
+
+    formula: "((AverageOverallSatisfactionScore - 1) / 4) * 100"
+
+    scale_mapping:
+      1: 0
+      2: 25
+      3: 50
+      4: 75
+      5: 100
+
+    unit: "indexpont a 0–100-as skálán"
+    default_for_analysis: true
+
+    usage_rule: >-
+      Képzési elégedettségi elemzésnél alapértelmezetten ezt a mutatót
+      kell használni.
+
+    minimum_unique_employee_count: 4
+
+    limitations:
+      - "Az index az 1–5-ös átlag lineáris átskálázása."
+      - "Nem a kedvező válaszok százalékos aránya."
+      - "Az index mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+
+  - name: "AverageTrainerEvaluationScore"
+    label: "Átlagos oktatói értékelési pontszám"
+    group: "training"
+
+    description: >-
+      Az érvényes TrainerEvaluationScore értékek számtani átlaga.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "TrainerEvaluationScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      Az érvényes TrainerEvaluationScore értékek összege /
+      az érvényes értékelések száma.
+
+    numerator: "Az érvényes TrainerEvaluationScore értékek összege."
+    denominator: "Az érvényes TrainerEvaluationScore értékek száma."
+    unit: "pont az 1–5-ös skálán"
+
+    default_for_analysis: false
+
+    usage_rule: >-
+      Csak a felhasználó kifejezett kérésére használható elemzési
+      vagy összehasonlítási mutatóként.
+
+    time_reference: >-
+      A képzések a TrainingDate alapján kerülnek a vizsgált időszakba.
+
+    missing_value_handling: >-
+      A hiányzó TrainerEvaluationScore értékek kimaradnak a számításból.
+      Self-paced Online képzésnél a hiányzó érték szabályos.
+
+    minimum_unique_employee_count: 4
+
+    trainer_privacy_exception:
+      minimum_response_count: 1
+      output_allowed: "aggregated_only"
+      response_count_required: true
+
+    rounding:
+      decimals: 2
+
+    documentation_status: "confirmed"
+
+
+  - name: "AverageTrainerEvaluationIndex"
+    label: "Átlagos oktatói értékelési index"
+    group: "training"
+
+    required_metrics:
+      - "AverageTrainerEvaluationScore"
+
+    formula: "((AverageTrainerEvaluationScore - 1) / 4) * 100"
+
+    scale_mapping:
+      1: 0
+      2: 25
+      3: 50
+      4: 75
+      5: 100
+
+    unit: "indexpont a 0–100-as skálán"
+    default_for_analysis: true
+
+    usage_rule: >-
+      Oktatói értékelések elemzésénél alapértelmezetten ezt a mutatót
+      kell használni.
+
+    allowed_uses:
+      - "konkrét oktató aggregált értékelése"
+      - "oktatók összehasonlítása"
+      - "értékelések vizsgálata válaszadói csoportok szerint"
+      - "az oktató és a válaszadó nemének együttes vizsgálata"
+
+    minimum_unique_employee_count: 4
+
+    trainer_privacy_exception:
+      minimum_response_count: 1
+      output_allowed: "aggregated_only"
+      response_count_required: true
+
+    limitations:
+      - "Az index az 1–5-ös átlag lineáris átskálázása."
+      - "Self-paced Online képzésnél nem értelmezhető."
+      - "Az értékelések számát minden oktatói eredmény mellett közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      Az oktatók közötti eltérésből annak oka vagy oksági kapcsolat
+      nem állapítható meg.
+
+    documentation_status: "confirmed"
+
+
+  - name: "AverageJobRelevanceScore"
+    label: "Átlagos munkaköri relevanciapontszám"
+    group: "training"
+
+    description: >-
+      Az érvényes JobRelevanceScore értékek számtani átlaga.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "JobRelevanceScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      Az érvényes JobRelevanceScore értékek összege /
+      az érvényes értékelések száma.
+
+    numerator: "Az érvényes JobRelevanceScore értékek összege."
+    denominator: "Az érvényes JobRelevanceScore értékek száma."
+    unit: "pont az 1–5-ös skálán"
+
+    default_for_analysis: false
+
+    usage_rule: >-
+      Csak a felhasználó kifejezett kérésére használható elemzési
+      vagy összehasonlítási mutatóként.
+
+    time_reference: >-
+      A képzések a TrainingDate alapján kerülnek a vizsgált időszakba.
+
+    missing_value_handling: >-
+      A hiányzó JobRelevanceScore értékek kimaradnak a számításból.
+
+    minimum_unique_employee_count: 4
+
+    rounding:
+      decimals: 2
+
+    documentation_status: "confirmed"
+
+
+  - name: "AverageJobRelevanceIndex"
+    label: "Átlagos munkaköri relevanciaindex"
+    group: "training"
+
+    required_metrics:
+      - "AverageJobRelevanceScore"
+
+    formula: "((AverageJobRelevanceScore - 1) / 4) * 100"
+
+    scale_mapping:
+      1: 0
+      2: 25
+      3: 50
+      4: 75
+      5: 100
+
+    unit: "indexpont a 0–100-as skálán"
+    default_for_analysis: true
+
+    usage_rule: >-
+      A képzések munkaköri relevanciájának elemzésénél alapértelmezetten
+      ezt a mutatót kell használni.
+
+    minimum_unique_employee_count: 4
+
+    allowed_uses:
+      - "képzési programok összehasonlítása"
+      - "képzési formák összehasonlítása"
+      - "munkavállalói csoportok összehasonlítása"
+      - "idősoros elemzés"
+
+    limitations:
+      - "Az index az 1–5-ös átlag lineáris átskálázása."
+      - "A mutató önbevalláson alapul."
+      - "Az index mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A magasabb relevanciaindex önmagában nem bizonyítja a munkateljesítmény
+      javulását vagy annak okát.
+
+    documentation_status: "confirmed"
+
+
+  - name: "AveragePersonalRelevanceScore"
+    label: "Átlagos személyes relevanciapontszám"
+    group: "training"
+
+    description: >-
+      Az érvényes PersonalRelevanceScore értékek számtani átlaga.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "PersonalRelevanceScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      Az érvényes PersonalRelevanceScore értékek összege /
+      az érvényes értékelések száma.
+
+    numerator: "Az érvényes PersonalRelevanceScore értékek összege."
+    denominator: "Az érvényes PersonalRelevanceScore értékek száma."
+    unit: "pont az 1–5-ös skálán"
+
+    default_for_analysis: false
+
+    usage_rule: >-
+      Csak a felhasználó kifejezett kérésére használható elemzési
+      vagy összehasonlítási mutatóként.
+
+    time_reference: >-
+      A képzések a TrainingDate alapján kerülnek a vizsgált időszakba.
+
+    missing_value_handling: >-
+      A hiányzó PersonalRelevanceScore értékek kimaradnak a számításból.
+
+    minimum_unique_employee_count: 4
+
+    rounding:
+      decimals: 2
+
+    documentation_status: "confirmed"
+
+  - name: "AveragePersonalRelevanceIndex"
+    label: "Átlagos személyes relevanciaindex"
+    group: "training"
+
+    required_metrics:
+      - "AveragePersonalRelevanceScore"
+
+    formula: "((AveragePersonalRelevanceScore - 1) / 4) * 100"
+
+    scale_mapping:
+      1: 0
+      2: 25
+      3: 50
+      4: 75
+      5: 100
+
+    unit: "indexpont a 0–100-as skálán"
+    default_for_analysis: true
+
+    usage_rule: >-
+      A képzések személyes szakmai relevanciájának elemzésénél
+      alapértelmezetten ezt a mutatót kell használni.
+
+    minimum_unique_employee_count: 4
+
+    allowed_uses:
+      - "képzési programok összehasonlítása"
+      - "képzési formák összehasonlítása"
+      - "munkavállalói csoportok összehasonlítása"
+      - "idősoros elemzés"
+
+    limitations:
+      - "Az index az 1–5-ös átlag lineáris átskálázása."
+      - "A mutató önbevalláson alapul."
+      - "Az index mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A magasabb relevanciaindex önmagában nem bizonyítja a szakmai fejlődést
+      vagy annak munkahelyi alkalmazását.
+
+    documentation_status: "confirmed"
+
+  - name: "AverageDigitalContentUsabilityScore"
+    label: "Digitális tananyag átlagos használhatósági pontszáma"
+    group: "training"
+
+    description: >-
+      Az érvényes DigitalContentUsabilityScore értékek számtani átlaga.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "DigitalContentUsabilityScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      Az érvényes DigitalContentUsabilityScore értékek összege /
+      az érvényes értékelések száma.
+
+    numerator: "Az érvényes DigitalContentUsabilityScore értékek összege."
+    denominator: "Az érvényes DigitalContentUsabilityScore értékek száma."
+    unit: "pont az 1–5-ös skálán"
+
+    default_for_analysis: false
+
+    usage_rule: >-
+      Csak a felhasználó kifejezett kérésére használható elemzési
+      vagy összehasonlítási mutatóként.
+
+    time_reference: >-
+      A képzések a TrainingDate alapján kerülnek a vizsgált időszakba.
+
+    missing_value_handling: >-
+      A hiányzó DigitalContentUsabilityScore kimarad a számításból.
+      Digitális tananyagot nem tartalmazó képzésnél a hiányzó érték szabályos.
+
+    minimum_unique_employee_count: 4
+
+    rounding:
+      decimals: 2
+
+    documentation_status: "confirmed"
+
+
+  - name: "AverageDigitalContentUsabilityIndex"
+    label: "Átlagos digitális használhatósági index"
+    group: "training"
+
+    required_metrics:
+      - "AverageDigitalContentUsabilityScore"
+
+    formula: "((AverageDigitalContentUsabilityScore - 1) / 4) * 100"
+
+    scale_mapping:
+      1: 0
+      2: 25
+      3: 50
+      4: 75
+      5: 100
+
+    unit: "indexpont a 0–100-as skálán"
+    default_for_analysis: true
+
+    usage_rule: >-
+      A digitális tananyag használhatóságának elemzésénél
+      alapértelmezetten ezt a mutatót kell használni.
+
+    minimum_unique_employee_count: 4
+
+    allowed_uses:
+      - "digitális képzési programok összehasonlítása"
+      - "képzési formák összehasonlítása"
+      - "munkavállalói csoportok összehasonlítása"
+      - "idősoros elemzés"
+
+    limitations:
+      - "Az index csak digitális tananyagot tartalmazó képzéseknél értelmezhető."
+      - "Az index az 1–5-ös átlag lineáris átskálázása."
+      - "Nem a kedvező válaszok százalékos aránya."
+      - "Az index mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A használhatósági index eltérése önmagában nem bizonyítja
+      a digitális tananyag minőségének vagy hatásának okát.
+
+    documentation_status: "confirmed"
+
+  - name: "OverallSatisfactionTop2BoxRate"
+    label: "Kedvező képzési elégedettségi válaszok aránya"
+    group: "training"
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "OverallSatisfactionScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      COUNT(OverallSatisfactionScore IN [4, 5]) /
+      COUNT(valid OverallSatisfactionScore) * 100.
+
+    numerator: "A 4-es vagy 5-ös választ tartalmazó rekordok száma."
+    denominator: "Az érvényes OverallSatisfactionScore értékelések száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Kedvező, pozitív vagy Top2 képzési elégedettségi válaszokra
+      vonatkozó kérdésnél használandó.
+
+    time_reference: "A TrainingDate alapján meghatározott vizsgálati időszak."
+
+    missing_value_handling: >-
+      A hiányzó OverallSatisfactionScore értékek kimaradnak a
+      számlálóból és a nevezőből.
+
+    minimum_unique_employee_count: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Top2, sem a Low2 kategóriába."
+      - "A mutató nem azonos a 0–100-as elégedettségi indexszel."
+      - "Az arány mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+
+  - name: "OverallSatisfactionLow2BoxRate"
+    label: "Kedvezőtlen képzési elégedettségi válaszok aránya"
+    group: "training"
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "OverallSatisfactionScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      COUNT(OverallSatisfactionScore IN [1, 2]) /
+      COUNT(valid OverallSatisfactionScore) * 100.
+
+    numerator: "Az 1-es vagy 2-es választ tartalmazó rekordok száma."
+    denominator: "Az érvényes OverallSatisfactionScore értékelések száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Kedvezőtlen, negatív vagy Low2 képzési elégedettségi válaszokra
+      vonatkozó kérdésnél használandó.
+
+    time_reference: "A TrainingDate alapján meghatározott vizsgálati időszak."
+
+    missing_value_handling: >-
+      A hiányzó OverallSatisfactionScore értékek kimaradnak a
+      számlálóból és a nevezőből.
+
+    minimum_unique_employee_count: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Top2, sem a Low2 kategóriába."
+      - "A mutató nem azonos a 0–100-as elégedettségi indexszel."
+      - "Az arány mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+
+  - name: "TrainerEvaluationTop2BoxRate"
+    label: "Kedvező oktatói értékelések aránya"
+    group: "training"
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "TrainerEvaluationScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      COUNT(TrainerEvaluationScore IN [4, 5]) /
+      COUNT(valid TrainerEvaluationScore) * 100.
+
+    numerator: "A 4-es vagy 5-ös oktatói értékelések száma."
+    denominator: "Az érvényes TrainerEvaluationScore értékelések száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Kedvező, pozitív vagy Top2 oktatói értékelésekre vonatkozó
+      kérdésnél használandó.
+
+    time_reference: "A TrainingDate alapján meghatározott vizsgálati időszak."
+
+    missing_value_handling: >-
+      A hiányzó TrainerEvaluationScore értékek kimaradnak a számításból.
+      Self-paced Online képzésnél a hiányzó érték szabályos.
+
+    minimum_unique_employee_count: 4
+
+    trainer_privacy_exception:
+      minimum_response_count: 1
+      output_allowed: "aggregated_only"
+      response_count_required: true
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Top2, sem a Low2 kategóriába."
+      - "Self-paced Online képzésnél nem értelmezhető."
+      - "Az arány mellett az értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A kedvező értékelések aránya önmagában nem magyarázza meg
+      az oktatók közötti eltéréseket.
+
+    documentation_status: "confirmed"
+
+
+  - name: "TrainerEvaluationLow2BoxRate"
+    label: "Kedvezőtlen oktatói értékelések aránya"
+    group: "training"
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "TrainerEvaluationScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      COUNT(TrainerEvaluationScore IN [1, 2]) /
+      COUNT(valid TrainerEvaluationScore) * 100.
+
+    numerator: "Az 1-es vagy 2-es oktatói értékelések száma."
+    denominator: "Az érvényes TrainerEvaluationScore értékelések száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Kedvezőtlen, negatív vagy Low2 oktatói értékelésekre vonatkozó
+      kérdésnél használandó.
+
+    time_reference: "A TrainingDate alapján meghatározott vizsgálati időszak."
+
+    missing_value_handling: >-
+      A hiányzó TrainerEvaluationScore értékek kimaradnak a számításból.
+      Self-paced Online képzésnél a hiányzó érték szabályos.
+
+    minimum_unique_employee_count: 4
+
+    trainer_privacy_exception:
+      minimum_response_count: 1
+      output_allowed: "aggregated_only"
+      response_count_required: true
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Top2, sem a Low2 kategóriába."
+      - "Self-paced Online képzésnél nem értelmezhető."
+      - "Az arány mellett az értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A kedvezőtlen értékelések aránya önmagában nem magyarázza meg
+      az oktatók közötti eltéréseket.
+
+    documentation_status: "confirmed"
+
+
+  - name: "JobRelevanceTop2BoxRate"
+    label: "Kedvező munkaköri relevanciaértékelések aránya"
+    group: "training"
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "JobRelevanceScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      COUNT(JobRelevanceScore IN [4, 5]) /
+      COUNT(valid JobRelevanceScore) * 100.
+
+    numerator: "A 4-es vagy 5-ös munkaköri relevanciaértékelések száma."
+    denominator: "Az érvényes JobRelevanceScore értékelések száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Kedvező, pozitív vagy Top2 munkaköri relevanciaértékelésekre
+      vonatkozó kérdésnél használandó.
+
+    time_reference: "A TrainingDate alapján meghatározott vizsgálati időszak."
+
+    missing_value_handling: >-
+      A hiányzó JobRelevanceScore értékek kimaradnak a számlálóból
+      és a nevezőből.
+
+    minimum_unique_employee_count: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Top2, sem a Low2 kategóriába."
+      - "A mutató nem azonos a 0–100-as munkaköri relevanciaindexszel."
+      - "Az arány mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+
+  - name: "JobRelevanceLow2BoxRate"
+    label: "Kedvezőtlen munkaköri relevanciaértékelések aránya"
+    group: "training"
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "JobRelevanceScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      COUNT(JobRelevanceScore IN [1, 2]) /
+      COUNT(valid JobRelevanceScore) * 100.
+
+    numerator: "Az 1-es vagy 2-es munkaköri relevanciaértékelések száma."
+    denominator: "Az érvényes JobRelevanceScore értékelések száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Kedvezőtlen, negatív vagy Low2 munkaköri relevanciaértékelésekre
+      vonatkozó kérdésnél használandó.
+
+    time_reference: "A TrainingDate alapján meghatározott vizsgálati időszak."
+
+    missing_value_handling: >-
+      A hiányzó JobRelevanceScore értékek kimaradnak a számlálóból
+      és a nevezőből.
+
+    minimum_unique_employee_count: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Top2, sem a Low2 kategóriába."
+      - "A mutató nem azonos a 0–100-as munkaköri relevanciaindexszel."
+      - "Az arány mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+  - name: "PersonalRelevanceTop2BoxRate"
+    label: "Kedvező személyes relevanciaértékelések aránya"
+    group: "training"
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "PersonalRelevanceScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      COUNT(PersonalRelevanceScore IN [4, 5]) /
+      COUNT(valid PersonalRelevanceScore) * 100.
+
+    numerator: "A 4-es vagy 5-ös személyes relevanciaértékelések száma."
+    denominator: "Az érvényes PersonalRelevanceScore értékelések száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Kedvező, pozitív vagy Top2 személyes relevanciaértékelésekre
+      vonatkozó kérdésnél használandó.
+
+    time_reference: "A TrainingDate alapján meghatározott vizsgálati időszak."
+
+    missing_value_handling: >-
+      A hiányzó PersonalRelevanceScore értékek kimaradnak a számlálóból
+      és a nevezőből.
+
+    minimum_unique_employee_count: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Top2, sem a Low2 kategóriába."
+      - "A mutató nem azonos a 0–100-as személyes relevanciaindexszel."
+      - "Az arány mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+
+  - name: "PersonalRelevanceLow2BoxRate"
+    label: "Kedvezőtlen személyes relevanciaértékelések aránya"
+    group: "training"
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "PersonalRelevanceScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      COUNT(PersonalRelevanceScore IN [1, 2]) /
+      COUNT(valid PersonalRelevanceScore) * 100.
+
+    numerator: "Az 1-es vagy 2-es személyes relevanciaértékelések száma."
+    denominator: "Az érvényes PersonalRelevanceScore értékelések száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Kedvezőtlen, negatív vagy Low2 személyes relevanciaértékelésekre
+      vonatkozó kérdésnél használandó.
+
+    time_reference: "A TrainingDate alapján meghatározott vizsgálati időszak."
+
+    missing_value_handling: >-
+      A hiányzó PersonalRelevanceScore értékek kimaradnak a számlálóból
+      és a nevezőből.
+
+    minimum_unique_employee_count: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Top2, sem a Low2 kategóriába."
+      - "A mutató nem azonos a 0–100-as személyes relevanciaindexszel."
+      - "Az arány mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+  - name: "DigitalContentUsabilityTop2BoxRate"
+    label: "Kedvező digitális használhatósági értékelések aránya"
+    group: "training"
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "DigitalContentUsabilityScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      COUNT(DigitalContentUsabilityScore IN [4, 5]) /
+      COUNT(valid DigitalContentUsabilityScore) * 100.
+
+    numerator: "A 4-es vagy 5-ös digitális használhatósági értékelések száma."
+    denominator: "Az érvényes DigitalContentUsabilityScore értékelések száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Kedvező, pozitív vagy Top2 digitális használhatósági értékelésekre
+      vonatkozó kérdésnél használandó.
+
+    time_reference: "A TrainingDate alapján meghatározott vizsgálati időszak."
+
+    missing_value_handling: >-
+      A hiányzó DigitalContentUsabilityScore értékek kimaradnak a
+      számlálóból és a nevezőből. Digitális tananyagot nem tartalmazó
+      képzésnél a hiányzó érték szabályos.
+
+    minimum_unique_employee_count: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Top2, sem a Low2 kategóriába."
+      - "Csak digitális tananyagot tartalmazó képzéseknél értelmezhető."
+      - "Az arány mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+
+  - name: "DigitalContentUsabilityLow2BoxRate"
+    label: "Kedvezőtlen digitális használhatósági értékelések aránya"
+    group: "training"
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "DigitalContentUsabilityScore"
+        expected_type: "integer_or_null"
+
+    formula: >-
+      COUNT(DigitalContentUsabilityScore IN [1, 2]) /
+      COUNT(valid DigitalContentUsabilityScore) * 100.
+
+    numerator: "Az 1-es vagy 2-es digitális használhatósági értékelések száma."
+    denominator: "Az érvényes DigitalContentUsabilityScore értékelések száma."
+    unit: "százalék"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Kedvezőtlen, negatív vagy Low2 digitális használhatósági értékelésekre
+      vonatkozó kérdésnél használandó.
+
+    time_reference: "A TrainingDate alapján meghatározott vizsgálati időszak."
+
+    missing_value_handling: >-
+      A hiányzó DigitalContentUsabilityScore értékek kimaradnak a
+      számlálóból és a nevezőből. Digitális tananyagot nem tartalmazó
+      képzésnél a hiányzó érték szabályos.
+
+    minimum_unique_employee_count: 4
+
+    limitations:
+      - "A 3-as válasz nem tartozik sem a Top2, sem a Low2 kategóriába."
+      - "Csak digitális tananyagot tartalmazó képzéseknél értelmezhető."
+      - "Az arány mellett az érvényes értékelések számát is közölni kell."
+
+    rounding:
+      decimals: 1
+
+    documentation_status: "confirmed"
+
+  - name: "CostPerParticipant"
+    label: "Egy résztvevőre jutó képzési költség"
+    group: "training"
+
+    description: >-
+      A vizsgált időszak nem törölt képzéseinek összes költsége az
+      egyedi képzési résztvevők számához viszonyítva.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "TrainingCostUSD"
+        expected_type: "number"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+
+    formula: >-
+      A period_start <= TrainingDate <= period_end és
+      CompletionStatus != "Cancelled" feltételnek megfelelő TrainingCostUSD
+      értékek összege / az ugyanezen rekordokban szereplő egyedi EmpID-k száma.
+
+    numerator: "A nem törölt képzési rekordok TrainingCostUSD értékeinek összege."
+    denominator: "A nem törölt képzéseken részt vevő egyedi munkavállalók száma."
+    unit: "USD/fő"
+
+    default_for_analysis: true
+
+    time_reference: >-
+      A képzési költségek a TrainingDate alapján kerülnek a vizsgált időszakba.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a képzési, szervezeti vagy
+      munkavállalói csoportra kell szűrni.
+
+    missing_value_handling: >-
+      Hiányzó TrainingDate, TrainingCostUSD vagy CompletionStatus esetén
+      a rekord kizárandó és adatminőségi hibaként jelzendő.
+
+    zero_denominator_handling: >-
+      Résztvevő nélküli csoportnál a mutató nem számítható ki.
+
+    minimum_unique_employee_count: 4
+
+    allowed_uses:
+      - "képzési költséghatékonyság elemzése"
+      - "képzési programok és szolgáltatók összehasonlítása"
+      - "szervezeti és munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_cost"
+      higher_value_meaning: "Magasabb egy résztvevőre jutó képzési költség."
+      lower_value_meaning: "Alacsonyabb egy résztvevőre jutó képzési költség."
+
+    limitations:
+      - "Egy résztvevő több képzésének költsége összeadódik."
+      - "A mutató nem azonos az egy képzési rekordra jutó átlagköltséggel."
+      - "A Cancelled képzések költsége nem szerepel a számításban."
+
+    rounding:
+      decimals: 2
+
+    causal_warning: >-
+      Az alacsonyabb költség önmagában nem jelent jobb képzési minőséget
+      vagy nagyobb üzleti eredményességet.
+
+    documentation_status: "confirmed"
+
+  - name: "CostPerSuccessfulCompletion"
+    label: "Sikeres teljesítésre jutó képzési költség"
+    group: "training"
+
+    description: >-
+      A nem törölt képzések összes költsége a sikeresen befejezett
+      képzési rekordok számához viszonyítva.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "TrainingRecordID"
+        expected_type: "string"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "TrainingCostUSD"
+        expected_type: "number"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+
+    formula: >-
+      A period_start <= TrainingDate <= period_end és
+      CompletionStatus != "Cancelled" feltételnek megfelelő TrainingCostUSD
+      értékek összege / a CompletionStatus = "Completed" feltételnek
+      megfelelő TrainingRecordID-k száma.
+
+    numerator: >-
+      A Completed vagy Incomplete státuszú képzési rekordok
+      TrainingCostUSD értékeinek összege.
+
+    denominator: "A Completed státuszú képzési rekordok száma."
+    unit: "USD/sikeres teljesítés"
+
+    default_for_analysis: true
+
+    time_reference: >-
+      A képzési költségek és teljesítések a TrainingDate alapján kerülnek
+      a vizsgált időszakba.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a képzési, szervezeti vagy
+      munkavállalói csoportra kell szűrni.
+
+    missing_value_handling: >-
+      Hiányzó TrainingDate, TrainingCostUSD vagy CompletionStatus esetén
+      a rekord kizárandó és adatminőségi hibaként jelzendő.
+
+    zero_denominator_handling: >-
+      Sikeresen befejezett képzés nélküli csoportnál a mutató nem számítható ki.
+
+    minimum_unique_employee_count: 4
+
+    allowed_uses:
+      - "képzési költséghatékonyság elemzése"
+      - "képzési programok és szolgáltatók összehasonlítása"
+      - "képzési formák összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_cost"
+      higher_value_meaning: "Magasabb költség jut egy sikeres teljesítésre."
+      lower_value_meaning: "Alacsonyabb költség jut egy sikeres teljesítésre."
+
+    limitations:
+      - "Az Incomplete képzések költsége szerepel a számlálóban."
+      - "A Cancelled képzések költsége nem szerepel a számításban."
+      - "A sikeres teljesítés itt Completed státuszt, nem Passed vizsgaeredményt jelent."
+
+    rounding:
+      decimals: 2
+
+    causal_warning: >-
+      Az alacsonyabb költség önmagában nem jelent jobb képzési minőséget
+      vagy nagyobb üzleti hatást.
+
+    documentation_status: "confirmed"
+
+  - name: "TrainingCostByProgram"
+    label: "Képzési költség programonként"
+    group: "training"
+
+    description: >-
+      A nem törölt képzési rekordok összes költsége
+      TrainingProgramName szerinti bontásban.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "TrainingProgramName"
+        expected_type: "string"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "TrainingCostUSD"
+        expected_type: "number"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+
+    formula: >-
+      SUM(TrainingCostUSD), ahol period_start <= TrainingDate <= period_end
+      és CompletionStatus != "Cancelled", TrainingProgramName szerint
+      csoportosítva.
+
+    numerator: "A nem törölt képzési rekordok TrainingCostUSD értékeinek összege."
+    denominator: "Nincs."
+    unit: "USD"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Képzési programok vagy tanfolyamok teljes költségének
+      vizsgálatakor használandó.
+
+    hierarchy_rule: >-
+      Alapértelmezetten TrainingCategory szerint összesíthető, majd
+      TrainingProgramName szerint részletezhető.
+
+    time_reference: >-
+      A képzési költségek a TrainingDate alapján kerülnek a vizsgált időszakba.
+
+    minimum_unique_employee_count: 4
+
+    accompanying_values:
+      - "képzési rekordok száma"
+      - "egyedi résztvevők száma"
+
+    interpretation:
+      result_type: "calculated_cost"
+      higher_value_meaning: "Magasabb összes képzési költség az adott programnál."
+      lower_value_meaning: "Alacsonyabb összes képzési költség az adott programnál."
+
+    limitations:
+      - "A mutató teljes költséget, nem egy résztvevőre jutó költséget mér."
+      - "A nagyobb résztvevőszám önmagában növelheti az összes költséget."
+      - "A Cancelled képzési rekordok költsége nem szerepel a számításban."
+
+    rounding:
+      decimals: 2
+
+    causal_warning: >-
+      A magasabb összes költség önmagában nem jelent rosszabb költséghatékonyságot.
+
+    documentation_status: "confirmed"
+
+
+  - name: "TrainingCostByProvider"
+    label: "Képzési költség szolgáltatónként"
+    group: "training"
+
+    description: >-
+      A nem törölt képzési rekordok összes költsége
+      TrainingProvider szerinti bontásban.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "TrainingProvider"
+        expected_type: "string"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "TrainingCostUSD"
+        expected_type: "number"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+
+    formula: >-
+      SUM(TrainingCostUSD), ahol period_start <= TrainingDate <= period_end
+      és CompletionStatus != "Cancelled", TrainingProvider szerint
+      csoportosítva.
+
+    numerator: "A nem törölt képzési rekordok TrainingCostUSD értékeinek összege."
+    denominator: "Nincs."
+    unit: "USD"
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Képzési szolgáltatók teljes költségének vizsgálatakor használandó.
+
+    time_reference: >-
+      A képzési költségek a TrainingDate alapján kerülnek a vizsgált időszakba.
+
+    organizational_filtering: >-
+      A mutató képzési programok, képzési típusok, szervezeti vagy
+      munkavállalói csoportok szerint tovább szűrhető.
+
+    missing_value_handling: >-
+      Hiányzó TrainingProvider, TrainingDate vagy TrainingCostUSD esetén
+      a rekord kizárandó és adatminőségi hibaként jelzendő.
+
+    minimum_unique_employee_count: 4
+
+    accompanying_values:
+      - "képzési rekordok száma"
+      - "egyedi résztvevők száma"
+      - "egy résztvevőre jutó képzési költség"
+
+    interpretation:
+      result_type: "calculated_cost"
+      higher_value_meaning: "Magasabb összes képzési költség az adott szolgáltatónál."
+      lower_value_meaning: "Alacsonyabb összes képzési költség az adott szolgáltatónál."
+
+    limitations:
+      - "A mutató teljes költséget, nem szolgáltatói egységárat mér."
+      - "A képzési programok eltérő összetétele befolyásolhatja az összehasonlítást."
+      - "A nagyobb résztvevőszám önmagában növelheti az összes költséget."
+      - "A Cancelled képzések költsége nem szerepel a számításban."
+
+    rounding:
+      decimals: 2
+
+    causal_warning: >-
+      A magasabb összes költség önmagában nem jelent rosszabb szolgáltatói
+      teljesítményt vagy költséghatékonyságot.
+
+    documentation_status: "confirmed"
+
+  - name: "Rolling3MonthTurnoverRate"
+    label: "Gördülő 3 havi fluktuációs ráta"
+    group: "turnover"
+
+    description: >-
+      A referencia-dátummal végződő megelőző három hónap teljes
+      fluktuációs rátája, a nyugdíjazásokat is beleértve.
+
+    required_metrics:
+      - "ExitCount"
+      - "AverageHeadcount"
+
+    formula: >-
+      A gördülő háromhavi időszak ExitCount értéke /
+      ugyanezen időszak AverageHeadcount értéke * 100.
+
+    numerator: >-
+      A gördülő háromhavi időszak összes kilépője, beleértve a
+      Voluntarily Terminated, Terminated for Cause és Retired státuszokat.
+
+    denominator: "A gördülő háromhavi időszak napi átlagos létszáma."
+    unit: "százalék"
+
+    time_reference: >-
+      Az időszak a referencia-dátummal végződő három teljes naptári hónap.
+      Például 2026-06-30 esetén: 2026-04-01–2026-06-30.
+
+    organizational_filtering: >-
+      A számlálót és a nevezőt ugyanarra a kiválasztott szervezeti vagy
+      munkavállalói csoportra kell kiszámítani.
+
+    zero_denominator_handling: >-
+      Nulla átlagos létszám esetén a mutató nem számítható ki.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "rövid távú fluktuációs trend elemzése"
+      - "havi gördülő idősor készítése"
+      - "szervezeti csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_rate"
+      higher_value_meaning: "Nagyobb háromhavi teljes kilépési arány."
+      lower_value_meaning: "Kisebb háromhavi teljes kilépési arány."
+
+    limitations:
+      - "A mutató a nyugdíjazásokat is tartalmazza."
+      - "A háromhavi érték nincs évesítve."
+      - "Az egymást követő értékek időszakai részben átfedik egymást."
+      - "Teljes háromhavi előzmény nélkül nem számítható ki."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A gördülő ráta változása önmagában nem magyarázza meg
+      a fluktuáció okát.
+
+    documentation_status: "confirmed"
+
+
+  - name: "PooledAverageEngagementIndex"
+    label: "Összevont elkötelezettségi index"
+    group: "engagement"
+
+    description: >-
+      Több kiválasztott felmérési hullám válaszrekordjaiból számított
+      elkötelezettségi index.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "ResponseID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EngagementScore"
+        expected_type: "integer"
+
+    formula: >-
+      A kiválasztott hullámok minden érvényes EngagementScore értékét
+      (EngagementScore - 1) * 25 képlettel 0–100-as skálára kell
+      átalakítani, majd a válaszrekordok számtani átlagát kell venni.
+
+    unit: "indexpont a 0–100-as skálán"
+
+    pooling_method: "response_record_weighted"
+
+    weighting_rule: >-
+      Minden válaszrekord azonos súlyt kap. Az a munkavállaló, aki több
+      kiválasztott hullámban válaszolt, minden válaszával külön szerepel.
+
+    default_for_general_analysis: false
+    default_for_matching_query: true
+
+    usage_rule: >-
+      Csak akkor használható, ha a felhasználó több hullám összevont,
+      együttes vagy pooled elkötelezettségi eredményét kéri.
+
+    time_reference: "A felhasználó által kiválasztott felmérési hullámok."
+
+    missing_value_handling: >-
+      A hiányzó EngagementScore értékek kimaradnak a számításból.
+
+    minimum_unique_employee_count: 4
+
+    accompanying_values:
+      - "érvényes válaszrekordok száma"
+      - "egyedi válaszadó munkavállalók száma"
+      - "összevont felmérési hullámok száma"
+
+    limitations:
+      - "A nagyobb válaszadószámú hullámok nagyobb súlyt kapnak."
+      - "Egy munkavállaló több válaszrekorddal is szerepelhet."
+      - "Az összevont érték elfedheti a hullámok közötti változásokat."
+      - "Az egyes hullámok eredményeit kérésre külön is be kell mutatni."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      Az összevont index önmagában nem mutatja meg az egyes hullámok
+      eltéréseinek vagy változásainak okát.
+
+    documentation_status: "confirmed"
+
+
+  - name: "PooledAverageSatisfactionIndex"
+    label: "Összevont átlagos elégedettségi index"
+    group: "engagement"
+
+    description: >-
+      Több felmérési hullám SatisfactionScore válaszrekordjaiból számított
+      átlagos elégedettségi index 0–100-as skálán.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "ResponseID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "SatisfactionScore"
+        expected_type: "integer"
+
+    formula: >-
+      Minden érvényes válaszrekord SatisfactionScore értékét
+      (SatisfactionScore - 1) * 25 képlettel 0–100-as indexre kell
+      átalakítani, majd az indexértékek számtani átlagát kell kiszámítani.
+
+    numerator: >-
+      Az összevont hullámok érvényes válaszrekordjaihoz tartozó
+      elégedettségi indexértékek összege.
+
+    denominator: >-
+      Az összevont hullámok érvényes SatisfactionScore válaszrekordjainak száma.
+
+    unit: "indexpont"
+
+    pooling_method: "response_record_weighted"
+
+    default_for_analysis: false
+
+    usage_rule: >-
+      Csak akkor használható, ha a felhasználó kifejezetten több hullám
+      összevont elégedettségi eredményét kéri. Egyébként a hullámokat
+      külön kell elemezni.
+
+    time_reference: >-
+      A felhasználó által kiválasztott felmérési hullámok összessége.
+
+    wave_selection_rule: >-
+      Az összevonandó hullámokat egyértelműen meg kell nevezni.
+      Megadott hullámok hiányában az eredmények nem vonhatók össze automatikusan.
+
+    missing_value_handling: >-
+      A hiányzó SatisfactionScore értékű válaszrekordok kimaradnak
+      a számlálóból és a nevezőből.
+
+    minimum_group_size: 4
+    minimum_group_size_basis: "unique_employees"
+
+    accompanying_values:
+      - "érvényes válaszrekordok száma"
+      - "egyedi válaszadók száma"
+      - "összevont hullámok száma"
+
+    allowed_uses:
+      - "több felmérési hullám összevont elégedettségi eredménye"
+      - "szervezeti és munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_index"
+      higher_value_meaning: "Magasabb átlagos munkahelyi elégedettség."
+      lower_value_meaning: "Alacsonyabb átlagos munkahelyi elégedettség."
+
+    limitations:
+      - "A nagyobb válaszadói létszámú hullámok nagyobb súlyt kapnak."
+      - >-
+        Ha ugyanaz a munkavállaló több hullámban válaszolt, minden
+        válaszrekordja külön beleszámít az eredménybe.
+      - "A hullámok összevonása elfedheti a hullámok közötti változásokat."
+      - "Az eredmény nem az egyedi munkavállalók egyenlő súlyú átlaga."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      Az összevont elégedettségi index önmagában nem magyarázza meg
+      az elégedettség szintjét vagy annak változását.
+
+    documentation_status: "confirmed"
+
+
+  - name: "PooledAverageWorkLifeBalanceIndex"
+    label: "Összevont átlagos munka-magánélet egyensúly index"
+    group: "engagement"
+
+    description: >-
+      Több felmérési hullám WorkLifeBalanceScore válaszrekordjaiból
+      számított átlagos index 0–100-as skálán.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "ResponseID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "WorkLifeBalanceScore"
+        expected_type: "integer"
+
+    formula: >-
+      Minden érvényes válaszrekord WorkLifeBalanceScore értékét
+      (WorkLifeBalanceScore - 1) * 25 képlettel 0–100-as indexre kell
+      átalakítani, majd az indexértékek számtani átlagát kell kiszámítani.
+
+    numerator: >-
+      Az összevont hullámok érvényes válaszrekordjaihoz tartozó
+      munka-magánélet egyensúly indexértékek összege.
+
+    denominator: >-
+      Az összevont hullámok érvényes WorkLifeBalanceScore
+      válaszrekordjainak száma.
+
+    unit: "indexpont"
+
+    pooling_method: "response_record_weighted"
+    default_for_analysis: false
+
+    usage_rule: >-
+      Csak akkor használható, ha a felhasználó kifejezetten több hullám
+      összevont munka-magánélet egyensúly eredményét kéri. Egyébként
+      a hullámokat külön kell elemezni.
+
+    time_reference: >-
+      A felhasználó által kiválasztott felmérési hullámok összessége.
+
+    wave_selection_rule: >-
+      Az összevonandó hullámokat egyértelműen meg kell nevezni.
+      Megadott hullámok hiányában az eredmények nem vonhatók össze automatikusan.
+
+    missing_value_handling: >-
+      A hiányzó WorkLifeBalanceScore értékű válaszrekordok kimaradnak
+      a számlálóból és a nevezőből.
+
+    minimum_group_size: 4
+    minimum_group_size_basis: "unique_employees"
+
+    accompanying_values:
+      - "érvényes válaszrekordok száma"
+      - "egyedi válaszadók száma"
+      - "összevont hullámok száma"
+
+    allowed_uses:
+      - "több felmérési hullám összevont eredménye"
+      - "szervezeti és munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_index"
+      higher_value_meaning: "Kedvezőbb érzékelt munka-magánélet egyensúly."
+      lower_value_meaning: "Kedvezőtlenebb érzékelt munka-magánélet egyensúly."
+
+    limitations:
+      - "A nagyobb válaszadói létszámú hullámok nagyobb súlyt kapnak."
+      - >-
+        Ha ugyanaz a munkavállaló több hullámban válaszolt, minden
+        válaszrekordja külön beleszámít az eredménybe.
+      - "A hullámok összevonása elfedheti a hullámok közötti változásokat."
+      - "Az eredmény nem az egyedi munkavállalók egyenlő súlyú átlaga."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      Az összevont index önmagában nem magyarázza meg a munka-magánélet
+      egyensúly szintjét vagy annak változását.
+
+    documentation_status: "confirmed"
+
+
+  - name: "PooledCompositeEngagementIndex"
+    label: "Összevont komplex engagement-index"
+    group: "engagement"
+
+    description: >-
+      Több felmérési hullám három 0–100-as indexének összevonásával
+      számított komplex engagement-index.
+
+    source_datasets:
+      - "engagement"
+
+    required_fields:
+      - dataset: "engagement"
+        field: "ResponseID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SurveyWaveID"
+        expected_type: "string"
+      - dataset: "engagement"
+        field: "EngagementScore"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "SatisfactionScore"
+        expected_type: "integer"
+      - dataset: "engagement"
+        field: "WorkLifeBalanceScore"
+        expected_type: "integer"
+
+    formula: >-
+      Válaszrekordonként ki kell számítani az EngagementScore,
+      SatisfactionScore és WorkLifeBalanceScore 0–100-as indexét
+      a (score - 1) * 25 képlettel. A három index számtani átlaga
+      adja a válaszrekord komplex indexét. Ezután az érvényes
+      válaszrekordok komplex indexeinek számtani átlagát kell kiszámítani.
+
+    numerator: >-
+      Az összevont hullámok érvényes válaszrekordjaihoz tartozó
+      komplex engagement-indexek összege.
+
+    denominator: >-
+      Azon válaszrekordok száma, amelyekben mindhárom pontszám érvényes.
+
+    unit: "indexpont"
+
+    pooling_method: "response_record_weighted"
+    default_for_analysis: false
+
+    usage_rule: >-
+      Csak a felhasználó kifejezett kérésére használható több hullám
+      összevont, komplex engagement-eredményének vizsgálatához.
+
+    time_reference: >-
+      A felhasználó által kiválasztott felmérési hullámok összessége.
+
+    wave_selection_rule: >-
+      Az összevonandó hullámokat egyértelműen meg kell nevezni.
+      Megadott hullámok hiányában az eredmények nem vonhatók össze automatikusan.
+
+    missing_value_handling: >-
+      A válaszrekord csak akkor vehető figyelembe, ha az EngagementScore,
+      SatisfactionScore és WorkLifeBalanceScore mindegyike érvényes.
+
+    minimum_group_size: 4
+    minimum_group_size_basis: "unique_employees"
+
+    accompanying_values:
+      - "érvényes válaszrekordok száma"
+      - "egyedi válaszadók száma"
+      - "összevont hullámok száma"
+
+    interpretation:
+      result_type: "calculated_composite_index"
+      higher_value_meaning: "Kedvezőbb összesített munkavállalói élmény."
+      lower_value_meaning: "Kedvezőtlenebb összesített munkavállalói élmény."
+
+    limitations:
+      - "A három részindex azonos súllyal szerepel."
+      - "A nagyobb válaszadói létszámú hullámok nagyobb súlyt kapnak."
+      - >-
+        Ha ugyanaz a munkavállaló több hullámban válaszolt, minden
+        válaszrekordja külön beleszámít az eredménybe.
+      - "Az összevonás elfedheti a hullámok és a részindexek közötti eltéréseket."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A komplex index önmagában nem magyarázza meg az eredmény szintjét
+      vagy annak változását.
+
+    documentation_status: "confirmed"
+
+
+  - name: "TrainingIncompleteRate"
+    label: "Félbehagyott képzések aránya"
+    group: "training"
+
+    description: >-
+      A félbehagyott képzési rekordok aránya a megkezdett,
+      nem törölt képzések között.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "TrainingRecordID"
+        expected_type: "string"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+
+    formula: >-
+      COUNT(CompletionStatus = "Incomplete") /
+      COUNT(CompletionStatus IN ["Completed", "Incomplete"]) * 100.
+
+    numerator: "Az Incomplete státuszú képzési rekordok száma."
+    denominator: >-
+      A Completed vagy Incomplete státuszú képzési rekordok száma.
+      A Cancelled rekordok nem szerepelnek a nevezőben.
+
+    unit: "százalék"
+
+    time_reference: >-
+      Azok a képzési rekordok tartoznak az időszakhoz, amelyeknél
+      period_start <= TrainingDate <= period_end.
+
+    missing_value_handling: >-
+      Hiányzó TrainingDate vagy CompletionStatus esetén a rekord
+      kimarad a számlálóból és a nevezőből.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "félbehagyott képzések arányának vizsgálata"
+      - "idősoros elemzés"
+      - "képzési programok és munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_rate"
+      higher_value_meaning: "A megkezdett képzések nagyobb része maradt befejezetlen."
+      lower_value_meaning: "A megkezdett képzések kisebb része maradt befejezetlen."
+
+    relationship_to_other_metrics: >-
+      Azonos szűrés és érvényes adatok mellett a TrainingCompletionRate
+      és a TrainingIncompleteRate összege 100%, a kerekítési eltéréstől eltekintve.
+
+    limitations:
+      - "A mutató nem tartalmazza a törölt képzéseket."
+      - "Nem mutatja meg a félbehagyás okát."
+      - "Egy munkavállaló több képzési rekorddal is szerepelhet."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A magasabb félbehagyási arány önmagában nem bizonyítja a képzés
+      minőségének vagy nehézségének problémáját.
+
+    documentation_status: "confirmed"
+
+
+  - name: "TrainingCancellationRate"
+    label: "Törölt képzések aránya"
+    group: "training"
+
+    description: >-
+      A Cancelled státuszú képzési rekordok aránya az összes
+      képzési rekord között.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "TrainingRecordID"
+        expected_type: "string"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+
+    formula: >-
+      COUNT(CompletionStatus = "Cancelled") /
+      COUNT(valid CompletionStatus) * 100.
+
+    numerator: "A Cancelled státuszú képzési rekordok száma."
+    denominator: "Az érvényes CompletionStatus értékű képzési rekordok száma."
+    unit: "százalék"
+
+    time_reference: >-
+      Azok a képzési rekordok tartoznak az időszakhoz, amelyeknél
+      period_start <= TrainingDate <= period_end.
+
+    missing_value_handling: >-
+      Hiányzó TrainingDate vagy CompletionStatus esetén a rekord
+      kimarad a számlálóból és a nevezőből.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "törölt képzések arányának vizsgálata"
+      - "idősoros elemzés"
+      - "képzési programok és munkavállalói csoportok összehasonlítása"
+
+    interpretation:
+      result_type: "calculated_rate"
+      higher_value_meaning: "Az összes képzési rekord nagyobb része lett törölve."
+      lower_value_meaning: "Az összes képzési rekord kisebb része lett törölve."
+
+    limitations:
+      - "A mutató nem mutatja meg a törlés okát vagy kezdeményezőjét."
+      - "Egy munkavállaló több képzési rekorddal is szerepelhet."
+      - "A törölt rekordok nem számítanak képzési részvételnek."
+
+    rounding:
+      decimals: 1
+
+    causal_warning: >-
+      A magasabb törlési arány önmagában nem bizonyít szervezési
+      vagy képzésminőségi problémát.
+
+    documentation_status: "confirmed"
+
+
+  - name: "TotalTrainingCost"
+    label: "Összes képzési költség"
+    group: "training"
+
+    description: >-
+      A vizsgált időszak nem törölt képzési rekordjaihoz tartozó
+      képzési költségek összege.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+      - dataset: "training"
+        field: "TrainingCostUSD"
+        expected_type: "number"
+
+    formula: >-
+      SUM(TrainingCostUSD), ahol period_start <= TrainingDate <= period_end
+      és CompletionStatus != "Cancelled".
+
+    numerator: "A feltételeknek megfelelő TrainingCostUSD értékek összege."
+    denominator: null
+    unit: "USD"
+
+    time_reference: >-
+      Azok a képzési rekordok tartoznak az időszakhoz, amelyeknél
+      period_start <= TrainingDate <= period_end.
+
+    missing_value_handling: >-
+      Hiányzó TrainingDate vagy CompletionStatus esetén a rekord kizárandó.
+      Hiányzó TrainingCostUSD nem kezelhető nulla költségként, ezért az ilyen
+      rekord kimarad az összegzésből, számukat pedig külön jelezni kell.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "képzési költségek összesítése"
+      - "idősoros költségelemzés"
+      - "képzési programok, szolgáltatók és csoportok összehasonlítása"
+      - "fajlagos képzési költségmutatók számítása"
+
+    interpretation:
+      result_type: "calculated_amount"
+      higher_value_meaning: "Magasabb összes képzési ráfordítás."
+      lower_value_meaning: "Alacsonyabb összes képzési ráfordítás."
+
+    limitations:
+      - "A Cancelled státuszú képzési rekordok költsége nem szerepel."
+      - "A mutató nem veszi figyelembe az inflációt vagy az árfolyamváltozást."
+      - "A magasabb költség önmagában nem jelent jobb képzési eredményt."
+
+    rounding:
+      decimals: 2
+
+    causal_warning: >-
+      A képzési költség változása önmagában nem magyarázza meg
+      a változás okát vagy a képzések eredményességét.
+
+    documentation_status: "confirmed"
+
+
+  - name: "TrainingParticipantCount"
+    label: "Képzésben részt vevő munkavállalók száma"
+    group: "training"
+
+    description: >-
+      A vizsgált időszakban legalább egy nem törölt képzési rekorddal
+      rendelkező egyedi munkavállalók száma.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "EmpID"
+        expected_type: "integer"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+
+    formula: >-
+      COUNT(DISTINCT EmpID), ahol period_start <= TrainingDate <= period_end
+      és CompletionStatus IN ["Completed", "Incomplete"].
+
+    numerator: >-
+      A feltételeknek megfelelő egyedi EmpID-k száma.
+    denominator: null
+    unit: "fő"
+
+    time_reference: >-
+      Azok a képzési rekordok tartoznak az időszakhoz, amelyeknél
+      period_start <= TrainingDate <= period_end.
+
+    missing_value_handling: >-
+      Hiányzó EmpID, TrainingDate vagy CompletionStatus esetén
+      a rekord kizárandó.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "képzési résztvevők számának vizsgálata"
+      - "idősoros elemzés"
+      - "szervezeti és munkavállalói csoportok összehasonlítása"
+      - "költség résztvevőnként mutató nevezője"
+
+    interpretation:
+      result_type: "calculated_count"
+      higher_value_meaning: "Több munkavállaló vett részt legalább egy képzésben."
+      lower_value_meaning: "Kevesebb munkavállaló vett részt képzésben."
+
+    limitations:
+      - "Egy munkavállaló az időszakon belül csak egyszer számít bele."
+      - "A Cancelled státuszú rekord nem számít részvételnek."
+      - "A mutató nem mutatja meg, hogy egy résztvevő hány képzésen vett részt."
+
+    documentation_status: "confirmed"
+
+
+  - name: "SuccessfulTrainingCompletionCount"
+    label: "Sikeresen teljesített képzések száma"
+    group: "training"
+
+    description: >-
+      A vizsgált időszak Completed státuszú képzési rekordjainak száma.
+
+    source_datasets:
+      - "training"
+
+    required_fields:
+      - dataset: "training"
+        field: "TrainingRecordID"
+        expected_type: "string"
+      - dataset: "training"
+        field: "TrainingDate"
+        expected_type: "date"
+      - dataset: "training"
+        field: "CompletionStatus"
+        expected_type: "string"
+
+    formula: >-
+      COUNT(DISTINCT TrainingRecordID), ahol
+      period_start <= TrainingDate <= period_end
+      és CompletionStatus = "Completed".
+
+    numerator: "A feltételeknek megfelelő egyedi TrainingRecordID-k száma."
+    denominator: null
+    unit: "teljesítés"
+
+    time_reference: >-
+      Azok a képzési rekordok tartoznak az időszakhoz, amelyeknél
+      period_start <= TrainingDate <= period_end.
+
+    missing_value_handling: >-
+      Hiányzó TrainingRecordID, TrainingDate vagy CompletionStatus
+      esetén a rekord kizárandó.
+
+    minimum_group_size: 4
+
+    allowed_uses:
+      - "sikeresen teljesített képzések számának vizsgálata"
+      - "idősoros elemzés"
+      - "képzési programok és munkavállalói csoportok összehasonlítása"
+      - "költség sikeres teljesítésenként mutató nevezője"
+
+    interpretation:
+      result_type: "calculated_count"
+      higher_value_meaning: "Több képzési részvétel végződött sikeres teljesítéssel."
+      lower_value_meaning: "Kevesebb képzési részvétel végződött sikeres teljesítéssel."
+
+    limitations:
+      - "Ez képzési rekordokat, nem egyedi munkavállalókat számol."
+      - "Egy munkavállaló több sikeres teljesítéssel is szerepelhet."
+      - "A Completed státusz nem feltétlenül jelent sikeres vizsgát."
+
+    documentation_status: "confirmed"

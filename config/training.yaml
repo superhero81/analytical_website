@@ -419,33 +419,49 @@ derived_dimensions:
     calculation: "A TrainingDate éve és hónapja YYYY-MM formátumban."
 
 derived_metrics:
-  - name: "ParticipationRate"
+  - name: "TrainingParticipationRate"
     label: "Képzési részvételi arány"
-    formula: "Az időszakban legalább egy képzési rekorddal rendelkező egyedi EmpID / az időszakban állományban lévő egyedi EmpID * 100"
+    formula: >-
+      Az időszakban legalább egy Completed vagy Incomplete képzési rekorddal
+      rendelkező egyedi EmpID / az időszakban legalább egy napon állományban
+      lévő egyedi EmpID * 100.
     unit: "százalék"
-  - name: "CompletionRate"
+  - name: "TrainingCompletionRate"
     label: "Teljesítési arány"
     formula: "Completed / (Completed + Incomplete) * 100"
     unit: "százalék"
-  - name: "IncompleteRate"
+  - name: "TrainingIncompleteRate"
     label: "Félbehagyási arány"
     formula: "Incomplete / (Completed + Incomplete) * 100"
     unit: "százalék"
-  - name: "CancellationRate"
+  - name: "TrainingCancellationRate"
     label: "Törlési arány"
     formula: "Cancelled / összes képzési rekord * 100"
     unit: "százalék"
-  - name: "FeedbackRate"
+  - name: "TrainingFeedbackResponseRate"
     label: "Visszajelzési arány"
-    formula: "FeedbackSubmitted = Yes rekordok / összes képzési rekord * 100"
+    formula: >-
+      A FeedbackSubmitted = Yes és CompletionStatus != "Cancelled"
+      feltételű rekordok száma / a Completed vagy Incomplete
+      státuszú rekordok száma * 100.
     unit: "százalék"
-  - name: "PassRate"
+  - name: "AssessmentPassRate"
     label: "Sikerességi arány"
     formula: "Passed / (Passed + Failed) * 100"
     unit: "százalék"
   - name: "CostPerParticipant"
     label: "Egy résztvevőre jutó képzési költség"
-    formula: "TrainingCostUSD összege / egyedi EmpID-k száma"
+    formula: >-
+      A nem Cancelled képzési rekordok TrainingCostUSD értékeinek összege /
+      az ugyanezen rekordokban szereplő egyedi EmpID-k száma.
+    numerator: >-
+      A Completed vagy Incomplete státuszú képzési rekordok
+      TrainingCostUSD értékeinek összege.
+    denominator: >-
+      A Completed vagy Incomplete képzési rekordokban szereplő
+      egyedi EmpID-k száma.
+    excluded_records:
+      - 'CompletionStatus = "Cancelled"'
     unit: "USD/fő"
 
   - name: "AverageOverallSatisfactionIndex"
