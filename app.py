@@ -296,33 +296,60 @@ def headcount_on_date(date):
         )
     ).sum()
 
+def average_headcount_between(start_date, end_date):
+    days = pd.date_range(
+        start=start_date,
+        end=end_date,
+        freq="D"
+    )
+
+    if len(days) == 0:
+        return 0
+
+    daily_headcounts = [
+        headcount_on_date(day)
+        for day in days
+    ]
+
+    return sum(daily_headcounts) / len(daily_headcounts)
 
 # Gördülő 12 hónap
 period_12m_start = (
-    reference_date - pd.DateOffset(years=1)
+    reference_date
+    - pd.DateOffset(years=1)
+    + pd.Timedelta(days=1)
+)
+
+opening_reference_date = (
+    period_12m_start - pd.Timedelta(days=1)
 )
 
 headcount_current = headcount_on_date(reference_date)
-headcount_previous = headcount_on_date(period_12m_start)
+headcount_previous = headcount_on_date(
+    opening_reference_date
+)
+
 headcount_change = (
     headcount_current - headcount_previous
 )
 
 hires_12m = (
-    (employees["StartDate"] > period_12m_start)
+    (employees["StartDate"] >= period_12m_start)
     & (employees["StartDate"] <= reference_date)
 ).sum()
 
+
 exits_12m_mask = (
-    (employees["ExitDate"] > period_12m_start)
+    (employees["ExitDate"] >= period_12m_start)
     & (employees["ExitDate"] <= reference_date)
 )
 
 exits_12m = exits_12m_mask.sum()
 
-average_headcount = (
-    headcount_previous + headcount_current
-) / 2
+average_headcount = average_headcount_between(
+    period_12m_start,
+    reference_date
+)
 
 turnover_rate = (
     exits_12m / average_headcount * 100
@@ -418,7 +445,7 @@ eligible_for_training = (
         employees["ExitDate"].isna()
         | (
             employees["ExitDate"]
-            >= training_month_start
+            > training_month_start
         )
     )
 ).sum()
@@ -703,11 +730,14 @@ elif st.session_state.selected_kpi == "turnover":
         )
 
         monthly_average_headcount = (
-            opening_headcount + closing_headcount
-        ) / 2
+            average_headcount_between(
+                month_start,
+                month_end
+            )
+        )
 
         monthly_exit_mask = (
-            (employees["ExitDate"] > month_start)
+            (employees["ExitDate"] >= month_start)
             & (employees["ExitDate"] <= month_end)
         )
 
@@ -1045,7 +1075,7 @@ elif st.session_state.selected_kpi == "training":
                 employees["ExitDate"].isna()
                 | (
                     employees["ExitDate"]
-                    >= month_start
+                    > month_start
                 )
             )
         ).sum()
