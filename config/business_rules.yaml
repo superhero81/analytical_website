@@ -1,0 +1,544 @@
+metadata:
+  file_name: "business_rules.yaml"
+  purpose: >-
+    A HR-adatállományokra és az azok közötti kapcsolatokra érvényes
+    közös üzleti és adatértelmezési szabályok.
+  official_cutoff_date: "2026-06-30"
+
+source_catalogs:
+  - "employee.yaml"
+  - "engagement.yaml"
+  - "training.yaml"
+  - "metrics.yaml"
+
+rule_groups:
+  - id: "time"
+    label: "Időszakok és referencia-időpontok"
+
+  - id: "employment"
+    label: "Munkaviszony és állományi státusz"
+
+  - id: "relationships"
+    label: "Adatállományok összekapcsolása"
+
+  - id: "filtering"
+    label: "Szűrések és csoportosítások"
+
+  - id: "privacy"
+    label: "Adatvédelem és eredményközlés"
+
+  - id: "data_quality"
+    label: "Hiányzó és ellentmondó adatok"
+
+
+business_rules:
+  - id: "official_cutoff_date"
+    label: "Hivatalos adatzárás"
+    group: "time"
+
+    description: >-
+      Az adatállományok legkésőbbi hivatalos referencia-időpontja
+      2026-06-30.
+
+    applies_to:
+      - "employee"
+      - "engagement"
+      - "training"
+      - "metrics"
+
+    rule: >-
+      Elemzés és számítás legfeljebb 2026-06-30-ig végezhető.
+      Ha a felhasználó nem ad meg záródátumot, ezt a dátumot kell használni.
+
+    future_date_handling: >-
+      Ha a felhasználó 2026-06-30 utáni időpontot kér, jelezni kell,
+      hogy arra az időszakra nincs adat. A kért dátum nem módosítható
+      automatikusan és észrevétlenül a záródátumra.
+
+    documentation_status: "confirmed"
+
+  - id: "analysis_period"
+    label: "Elemzési időszak kezelése"
+    group: "time"
+
+    description: >-
+      Az elemzések előre meghatározott vagy egyedileg megadott
+      időszakra is elkészíthetők.
+
+    supported_periods:
+      - "nap"
+      - "hónap"
+      - "negyedév"
+      - "év"
+      - "gördülő 3 hónap"
+      - "gördülő 12 hónap"
+      - "egyedi kezdő- és záródátum"
+
+    rule: >-
+      A period_start és period_end határnapok is beletartoznak a vizsgált
+      időszakba. A period_start nem lehet későbbi a period_end értékénél,
+      a period_end pedig nem lehet későbbi 2026-06-30-nál.
+
+    clarification_rule: >-
+      Ha a kérdésből nem határozható meg egyértelműen az időszak,
+      az AI kérjen pontosítást, kivéve, ha az adott metrika saját
+      alapértelmezett időszakszabállyal rendelkezik.
+
+    documentation_status: "confirmed"
+
+  - id: "dataset_date_selection"
+    label: "Dátummezők kiválasztása"
+    group: "time"
+
+    rule: >-
+      Minden elemzésnél az elemzési kérdéshez tartozó megfelelő
+      dátummezőt kell használni.
+
+    date_fields:
+      employee:
+        StartDate: "Belépések és munkaviszony kezdetének vizsgálata."
+        ExitDate: "Kilépések és munkaviszony végének vizsgálata."
+
+      engagement:
+        SurveyWaveID: "Felmérési hullámok azonosítása és összehasonlítása."
+        SurveyLaunchDate: "Válaszadási jogosultság és válaszadási arány számítása."
+        SurveyDate: "A válasz tényleges rögzítési dátumának vizsgálata."
+
+      training:
+        TrainingDate: "Képzési részvétel, teljesítés és költség időszaki besorolása."
+
+    restriction: >-
+      Az eltérő jelentésű dátummezők nem helyettesíthetők egymással.
+
+    documentation_status: "confirmed"
+
+  - id: "active_employment_on_date"
+    label: "Állományban lévő munkavállaló"
+    group: "employment"
+
+    description: >-
+      Meghatározza, hogy egy munkavállaló egy adott napon
+      az állományi létszám részének számít-e.
+
+    rule: >-
+      A munkavállaló akkor számít állományban lévőnek, ha
+      StartDate <= reference_date és
+      (ExitDate üres vagy ExitDate > reference_date).
+
+    boundary_rules:
+      - "A belépés napján a munkavállaló már beleszámít a létszámba."
+      - "A kilépés napján a munkavállaló már nem számít állományban lévőnek."
+      - "A hiányzó ExitDate azt jelenti, hogy a munkaviszony az adatzárásig nem ért véget."
+
+    status_rule: >-
+      A történeti állományi létszámot a StartDate és ExitDate alapján
+      kell meghatározni, nem az EmployeeStatus aktuális értéke alapján.
+
+    documentation_status: "confirmed"
+
+  - id: "employed_during_period"
+    label: "Az időszakban legalább egy napon állományban lévő munkavállaló"
+    group: "employment"
+
+    description: >-
+      Meghatározza az időszaki munkavállalói lefedettségi mutatók
+      jogosulti körét.
+
+    rule: >-
+      A munkavállaló akkor tartozik az időszaki jogosulti körbe, ha
+      StartDate <= period_end és
+      (ExitDate üres vagy ExitDate > period_start).
+
+    boundary_rules:
+      - "Az időszak zárónapján belépő munkavállaló beleszámít."
+      - "Az időszak nyitónapján kilépő munkavállaló nem számít bele."
+      - "Már egyetlen állományban töltött nap is elegendő a bekerüléshez."
+
+    allowed_uses:
+      - "képzési részvételi arány nevezője"
+      - "sikeres képzési lefedettség nevezője"
+      - "időszaki munkavállalói jogosultság meghatározása"
+
+    documentation_status: "confirmed"
+
+  - id: "exit_classification"
+    label: "Kilépések besorolása"
+    group: "employment"
+
+    rule: >-
+      Kilépőnek az a munkavállaló számít, akinek az ExitDate mezője
+      kitöltött és a vizsgált időszakba esik.
+
+    status_mapping:
+      "Voluntarily Terminated": "önkéntes kilépés"
+      "Terminated for Cause": "nem önkéntes, munkáltatói megszüntetés"
+      "Retired": "nyugdíjazás"
+
+    turnover_rule: >-
+      A teljes fluktuáció az önkéntes kilépéseket, a munkáltatói
+      megszüntetéseket és a nyugdíjazásokat egyaránt tartalmazza.
+
+    unavailable_category_rule: >-
+      Közös megegyezés kategória nem szerepel az adatállományban.
+      Ilyen kilépés nem azonosítható és nem sorolható automatikusan
+      sem az önkéntes, sem a nem önkéntes kilépések közé.
+
+    documentation_status: "confirmed"
+
+  - id: "employee_status_interpretation"
+    label: "Munkavállalói státusz értelmezése"
+    group: "employment"
+
+    description: >-
+      Az EmployeeStatus a munkavállaló 2026-06-30-i státuszát mutatja,
+      nem történeti állapotváltozásokat tartalmazó mező.
+
+    rule: >-
+      Történeti létszám- és munkaviszony-vizsgálatnál a StartDate és
+      ExitDate mezőket kell használni. Az EmployeeStatus önmagában
+      nem használható korábbi időpontok állományának meghatározására.
+
+    leave_of_absence_rule: >-
+      A Leave of Absence státuszú munkavállaló munkaviszonya fennáll,
+      ezért az állományi létszámba beleszámít, ha a dátumfeltételeknek megfelel.
+
+    restriction: >-
+      Az aktuális státuszból nem következtethető vissza, hogy a munkavállaló
+      egy korábbi időpontban milyen státuszban volt.
+
+    documentation_status: "confirmed"
+
+  - id: "employee_dataset_relationships"
+    label: "Adatállományok összekapcsolása"
+    group: "relationships"
+
+    primary_dataset: "employee"
+    join_key: "EmpID"
+
+    relationships:
+      engagement:
+        cardinality: "many_to_one"
+        description: >-
+          Több felmérési válasz tartozhat egy munkavállalóhoz.
+
+      training:
+        cardinality: "many_to_one"
+        description: >-
+          Több képzési rekord tartozhat egy munkavállalóhoz.
+
+    rule: >-
+      Az engagement és training adatállományokat az employee
+      adatállományhoz az EmpID mezőn keresztül kell kapcsolni.
+
+    validation_rule: >-
+      Minden engagement- és training-rekord EmpID értékének léteznie
+      kell az employee adatállományban.
+
+    documentation_status: "confirmed"
+
+  - id: "many_to_many_join_protection"
+    label: "Több-a-többhöz kapcsolás kezelése"
+    group: "relationships"
+
+    risk: >-
+      Egy munkavállalóhoz több engagement-válasz és több képzési rekord
+      is tartozhat. A két adatállomány közvetlen összekapcsolása
+      mesterségesen megsokszorozhatja a rekordokat.
+
+    rule: >-
+      Az engagement és training adatokat nem szabad közvetlenül,
+      nyers rekordszinten összekapcsolni kizárólag az EmpID alapján.
+
+    required_method: >-
+      Keresztadatállományos elemzés előtt mindkét adatállományt a kérdésnek
+      megfelelő munkavállalói és időbeli szintre kell aggregálni, majd az
+      aggregált eredményeket kell az employee adatokhoz kapcsolni.
+
+    validation_rule: >-
+      Kapcsolás után ellenőrizni kell, hogy a rekordok száma és a vizsgált
+      munkavállalók köre nem növekedett-e indokolatlanul.
+
+    documentation_status: "confirmed"
+
+  - id: "event_within_employment"
+    label: "Esemény munkaviszonyon belül"
+    group: "relationships"
+
+    description: >-
+      Felmérési válasz és képzési esemény csak fennálló munkaviszony
+      alatt kapcsolható a munkavállalóhoz.
+
+    rule: >-
+      Az esemény dátumának meg kell felelnie a
+      StartDate <= event_date és
+      (ExitDate üres vagy event_date < ExitDate) feltételnek.
+
+    event_dates:
+      engagement: "SurveyDate"
+      training: "TrainingDate"
+
+    boundary_rules:
+      - "A belépés napján rögzített esemény érvényes."
+      - "A kilépés napján rögzített esemény nem érvényes."
+
+    invalid_record_handling: >-
+      A munkaviszonyon kívülre eső rekord adatminőségi hibának minősül,
+      és elemzéshez nem használható.
+
+    documentation_status: "confirmed"
+
+  - id: "consistent_metric_filtering"
+    label: "Számláló és nevező azonos szűrése"
+    group: "filtering"
+
+    rule: >-
+      Arányszámok számításakor a számlálót és a nevezőt ugyanarra
+      az időszakra, szervezeti csoportra és munkavállalói körre kell szűrni.
+
+    required_consistency:
+      - "azonos időszak"
+      - "azonos szervezeti szűrés"
+      - "azonos munkavállalói csoport"
+      - "azonos adatérvényességi szabályok"
+
+    restriction: >-
+      Különböző szűrésű számlálóból és nevezőből arányszám
+      nem képezhető.
+
+    validation_rule: >-
+      A számlálóban szereplő minden rekordnak vagy munkavállalónak
+      a meghatározott nevező jogosulti köréhez kell tartoznia.
+
+    documentation_status: "confirmed"
+
+  - id: "organizational_attribute_timing"
+    label: "Szervezeti jellemzők időbeli értelmezése"
+    group: "filtering"
+
+    rule: >-
+      Az employee adatállomány szervezeti és munkaköri mezői a rekordban
+      szereplő aktuális vagy utolsó ismert értéket mutatják.
+
+    historical_analysis_rule: >-
+      Korábbi időszak elemzésekor a munkavállaló eseményei csak a rekordban
+      szereplő szervezeti és munkaköri jellemzőkhöz rendelhetők.
+
+    limitation: >-
+      Szervezeti áthelyezések és munkakörváltozások története nem áll
+      rendelkezésre, ezért nem állapítható meg biztosan, hogy a munkavállaló
+      az esemény időpontjában ugyanabba a csoportba tartozott-e.
+
+    output_requirement: >-
+      Történeti szervezeti összehasonlításnál ezt a korlátozást jelezni kell.
+
+    documentation_status: "confirmed"
+
+  - id: "field_usage_control"
+    label: "Elemzésre használható mezők"
+    group: "filtering"
+
+    rule: >-
+      Elemzéshez, szűréshez, csoportosításhoz és eredményközléshez
+      csak az adatállomány-katalógusokban engedélyezett mezők használhatók.
+
+    catalog_controls:
+      usable_for_analysis: >-
+        false érték esetén a mező elemzéshez és szűréshez nem használható.
+      output_allowed: >-
+        false érték esetén a mező értéke nem jeleníthető meg.
+      allowed_uses: >-
+        A mező csak a felsorolt elemzési célokra használható.
+      restrictions: >-
+        A mezőhöz tartozó egyedi korlátozásokat minden esetben alkalmazni kell.
+
+    precedence_rule: >-
+      Ha egy általános szabály és egy mezőspecifikus korlátozás eltér,
+      a szigorúbb mezőspecifikus szabály az irányadó.
+
+    documentation_status: "confirmed"
+
+  - id: "minimum_group_size"
+    label: "Minimális közölhető csoportméret"
+    group: "privacy"
+
+    default_rule: >-
+      Munkavállalói csoport eredménye csak akkor jeleníthető meg,
+      ha a csoport legalább 4 egyedi munkavállalót vagy válaszadót tartalmaz.
+
+    suppressed_groups:
+      - "1 fős csoport"
+      - "2 fős csoport"
+      - "3 fős csoport"
+
+    trainer_exception: >-
+      Konkrét oktató aggregált értékelése már egy válasz alapján is
+      megjeleníthető, de az értékelések számát mindig közölni kell.
+      Az egyéni válaszadó személye vagy válasza nem jeleníthető meg.
+
+    calculation_rule: >-
+      A minimális csoportméretet egyedi személyek, nem pedig rekordok
+      száma alapján kell ellenőrizni, kivéve az oktatói kivételt.
+
+    documentation_status: "confirmed"
+
+  - id: "individual_record_protection"
+    label: "Egyéni rekordok védelme"
+    group: "privacy"
+
+    rule: >-
+      Egyéni munkavállalói, felmérési, képzési, teljesítési vagy
+      visszajelzési rekord nem jeleníthető meg.
+
+    prohibited_outputs:
+      - "EmpID"
+      - "ResponseID"
+      - "TrainingRecordID"
+      - "egyéni felmérési válasz"
+      - "egyéni képzési vagy teljesítési előzmény"
+      - "egyéni teljesítményértékelés"
+
+    response_rule: >-
+      Ha a felhasználó egyéni adatot kér, az AI utasítsa el az egyéni
+      eredmény közlését, és ajánljon fel megfelelő aggregált elemzést.
+
+    inference_rule: >-
+      Aggregált eredmény sem közölhető, ha abból egy konkrét
+      munkavállaló adata közvetlenül visszakövetkeztethető.
+
+    documentation_status: "confirmed"
+
+  - id: "sample_size_reporting"
+    label: "Elemszámok közlése"
+    group: "privacy"
+
+    rule: >-
+      Felmérési, képzési visszajelzési és oktatói eredmény mellett
+      minden esetben közölni kell az elemzés alapjául szolgáló elemszámot.
+
+    required_counts:
+      survey_results:
+        - "érvényes válaszok száma"
+        - "egyedi válaszadók száma, ha több hullámot vonunk össze"
+
+      training_feedback:
+        - "érvényes értékelési rekordok száma"
+        - "egyedi válaszadók száma"
+
+      trainer_results:
+        - "az oktatóhoz tartozó érvényes értékelések száma"
+
+    percentage_rule: >-
+      Arányszám mellett a nevező elemszámát is közölni kell.
+
+    documentation_status: "confirmed"
+
+  - id: "missing_value_handling"
+    label: "Hiányzó értékek kezelése"
+    group: "data_quality"
+
+    rule: >-
+      A hiányzó érték jelentését mindig az adott adatállomány
+      mezőspecifikus katalógusleírása alapján kell értelmezni.
+
+    prohibited_handling:
+      - "A hiányzó érték nem helyettesíthető automatikusan nullával."
+      - "Nem sorolható automatikusan a Nem, Sikertelen vagy Ismeretlen kategóriába."
+      - "Nem pótolható becsült értékkel külön dokumentált szabály nélkül."
+
+    metric_rule: >-
+      Ha a metrika másként nem rendelkezik, a hiányzó mérési érték
+      kimarad a számlálóból és a nevezőből.
+
+    output_requirement: >-
+      Ha a hiányzó adatok befolyásolhatják az eredmény értelmezését,
+      azok számát vagy arányát közölni kell.
+
+    documentation_status: "confirmed"
+
+  - id: "catalog_precedence"
+    label: "Katalógusszabályok elsőbbsége"
+    group: "data_quality"
+
+    rule: >-
+      Eltérő vagy egymásnak ellentmondó katalógusleírások esetén
+      a szabály jellegének megfelelő elsődleges forrást kell használni.
+
+    precedence:
+      field_definition: "Az adott adatállomány YAML-fájlja."
+      metric_formula: "metrics.yaml"
+      cross_dataset_rule: "business_rules.yaml"
+      statistical_method: "analysis_rules.yaml"
+      privacy_rule: "Mindig a szigorúbb adatvédelmi szabály."
+
+    conflict_handling: >-
+      Ha az eltérés az elsőbbségi szabály alapján sem oldható fel,
+      a számítást nem szabad automatikusan elvégezni. Az AI jelezze
+      az ellentmondást és kérjen pontosítást.
+
+    documentation_status: "confirmed"
+
+  - id: "invalid_record_handling"
+    label: "Érvénytelen rekordok kezelése"
+    group: "data_quality"
+
+    invalid_record_conditions:
+      - "Hiányzó kötelező mező."
+      - "Duplikált elsődleges azonosító."
+      - "Ismeretlen EmpID-hivatkozás."
+      - "Megengedett tartományon kívüli érték."
+      - "Munkaviszonyon kívülre eső felmérési vagy képzési esemény."
+      - "A hivatalos záródátum utáni rekord."
+
+    rule: >-
+      Az érvénytelen rekordot ki kell zárni az érintett elemzésből,
+      és adatminőségi hibaként kell jelezni.
+
+    correction_rule: >-
+      Az AI nem javíthatja és nem sorolhatja át automatikusan
+      az érvénytelen rekordot dokumentált javítási szabály nélkül.
+
+    output_requirement: >-
+      Ha rekordkizárás történt, közölni kell a kizárt rekordok számát
+      és a kizárás okát.
+
+    documentation_status: "confirmed"
+
+  - id: "zero_denominator_handling"
+    label: "Nulla nevező kezelése"
+    group: "data_quality"
+
+    rule: >-
+      Ha egy arányszám nevezője nulla, a mutató nem számítható ki,
+      és eredménye nem jeleníthető meg 0%-ként.
+
+    output_value: "not_calculable"
+
+    response_rule: >-
+      Az AI jelezze, hogy a kiválasztott időszakban vagy csoportban
+      nincs a mutató számításához szükséges jogosult vagy érvényes rekord.
+
+    prohibited_handling:
+      - "Nullával való osztás."
+      - "A nem számítható eredmény automatikus 0%-ra állítása."
+      - "Más időszak vagy csoport észrevétlen behelyettesítése."
+
+    documentation_status: "confirmed"
+
+  - id: "rounding_rule"
+    label: "Kerekítés"
+    group: "data_quality"
+
+    rule: >-
+      A számításokat teljes rendelkezésre álló pontossággal kell elvégezni.
+      Kerekíteni csak a végső, megjelenített eredményt szabad.
+
+    decimal_rule: >-
+      A megjelenített tizedesjegyek számát az adott metrika
+      metrics.yaml fájlban rögzített rounding szabálya határozza meg.
+
+    comparison_rule: >-
+      Különbségek és változások számításakor a nem kerekített
+      alapértékeket kell felhasználni.
+
+    documentation_status: "confirmed"
+

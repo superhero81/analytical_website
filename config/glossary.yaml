@@ -1,0 +1,2122 @@
+metadata:
+  file_name: "glossary.yaml"
+  purpose: >-
+    A projektben használt HR-, képzési és statisztikai fogalmak,
+    elnevezések és szinonimák egységes értelmezése.
+  language: "hu"
+  official_cutoff_date: "2026-06-30"
+
+source_catalogs:
+  - "employee.yaml"
+  - "engagement.yaml"
+  - "training.yaml"
+  - "metrics.yaml"
+  - "business_rules.yaml"
+  - "analysis_rules.yaml"
+  - "question_routing.yaml"
+
+term_groups:
+  - id: "workforce"
+    label: "Létszám és foglalkoztatás"
+
+  - id: "turnover"
+    label: "Fluktuáció és kilépés"
+
+  - id: "engagement"
+    label: "Engagement és felmérések"
+
+  - id: "training"
+    label: "Képzés és fejlesztés"
+
+  - id: "statistics"
+    label: "Statisztikai fogalmak"
+
+  - id: "privacy"
+    label: "Adatvédelem és eredményközlés"
+
+terms:
+
+  - id: "headcount"
+    preferred_term: "létszám"
+    group: "workforce"
+
+    synonyms:
+      - "állományi létszám"
+      - "dolgozói létszám"
+      - "munkavállalók száma"
+      - "hány dolgozó"
+      - "hány munkavállaló"
+
+    definition: >-
+      Egy meghatározott időpontban vagy időszakban állományban lévő
+      munkavállalók száma.
+
+    related_fields:
+      - "EmpID"
+      - "StartDate"
+      - "ExitDate"
+
+    related_metrics:
+      - "OpeningHeadcount"
+      - "ClosingHeadcount"
+      - "AverageHeadcount"
+      - "OpeningClosingAverageHeadcount"
+
+    interpretation_rule: >-
+      A „létszám” pontos jelentését az időbeli megfogalmazás határozza meg.
+      Ha ez nem egyértelmű, tisztázni kell, hogy nyitó-, záró- vagy
+      átlagos létszámról van-e szó.
+
+    documentation_status: "confirmed"
+
+  - id: "average_headcount"
+    preferred_term: "átlagos létszám"
+    group: "workforce"
+
+    synonyms:
+      - "időszaki átlaglétszám"
+      - "átlaglétszám"
+      - "napi átlagos állományi létszám"
+
+    definition: >-
+      A vizsgált időszak egyes naptári napjaira kiszámított
+      állományi létszámok számtani átlaga.
+
+    default_metric: "AverageHeadcount"
+
+    alternative_metric:
+      name: "OpeningClosingAverageHeadcount"
+      meaning: "A nyitó- és zárólétszám egyszerű számtani átlaga."
+      usage: "Csak kifejezett kérésre vagy kiegészítő összehasonlításként."
+
+    interpretation_rule: >-
+      Az „átlagos létszám” alapértelmezetten napi átlagos létszámot jelent.
+      A nyitó- és zárólétszám átlaga nem használható automatikusan helyette.
+
+    documentation_status: "confirmed"
+
+  - id: "active_employee"
+    preferred_term: "állományban lévő munkavállaló"
+    group: "workforce"
+
+    synonyms:
+      - "aktív munkavállaló"
+      - "foglalkoztatott"
+      - "állományban lévő dolgozó"
+      - "munkaviszonyban álló munkavállaló"
+
+    definition: >-
+      Az adott napon olyan munkavállaló, akinél StartDate legfeljebb
+      az adott nap, és ExitDate nincs kitöltve vagy későbbi az adott napnál.
+
+    calculation_rule: >-
+      StartDate <= reference_date és
+      (ExitDate üres vagy ExitDate > reference_date).
+
+    boundary_rules:
+      - "A belépés napján már állományban lévőnek számít."
+      - "A kilépés napján már nem számít állományban lévőnek."
+      - "A Leave of Absence státuszú munkavállaló munkaviszonya fennáll."
+
+    related_rule: "active_employment_on_date"
+
+    documentation_status: "confirmed"
+
+  - id: "hire"
+    preferred_term: "belépő"
+    group: "workforce"
+
+    synonyms:
+      - "új belépő"
+      - "új munkavállaló"
+      - "felvett dolgozó"
+      - "munkaerő-felvétel"
+      - "belépés"
+
+    definition: >-
+      Olyan munkavállaló, akinek StartDate értéke a vizsgált
+      időszakba esik.
+
+    related_field: "StartDate"
+    related_metric: "HireCount"
+
+    interpretation_rule: >-
+      A belépők számát a StartDate, nem pedig az EmployeeStatus
+      értéke alapján kell meghatározni.
+
+    documentation_status: "confirmed"
+
+  - id: "exit"
+    preferred_term: "kilépő"
+    group: "turnover"
+
+    synonyms:
+      - "kilépés"
+      - "távozó munkavállaló"
+      - "megszűnt munkaviszony"
+      - "állományból kikerült munkavállaló"
+
+    definition: >-
+      Olyan munkavállaló, akinek kitöltött ExitDate értéke
+      a vizsgált időszakba esik.
+
+    related_fields:
+      - "ExitDate"
+      - "EmployeeStatus"
+
+    related_metric: "ExitCount"
+
+    interpretation_rule: >-
+      A kilépés időpontját az ExitDate határozza meg.
+      A kilépés napján a munkavállaló már nem számít állományban lévőnek.
+
+    documentation_status: "confirmed"
+
+  - id: "turnover"
+    preferred_term: "fluktuáció"
+    group: "turnover"
+
+    synonyms:
+      - "kilépési arány"
+      - "munkaerő-forgalom"
+      - "turnover"
+      - "employee turnover"
+      - "attrition"
+
+    definition: >-
+      A vizsgált időszak kilépőinek száma a napi átlagos
+      létszámhoz viszonyítva, százalékban.
+
+    default_metric: "TotalTurnoverRate"
+
+    related_metrics:
+      - "VoluntaryTurnoverRate"
+      - "InvoluntaryTurnoverRate"
+      - "RetirementExitRate"
+      - "Rolling3MonthTurnoverRate"
+      - "Rolling12MonthTurnoverRate"
+
+    interpretation_rule: >-
+      Típus megadása nélkül a fluktuáció a teljes fluktuációt jelenti,
+      amely az önkéntes, nem önkéntes és nyugdíjazási kilépéseket is tartalmazza.
+
+    documentation_status: "confirmed"
+
+  - id: "voluntary_turnover"
+    preferred_term: "önkéntes fluktuáció"
+    group: "turnover"
+
+    synonyms:
+      - "önkéntes kilépési arány"
+      - "saját döntésből távozók aránya"
+      - "felmondók aránya"
+      - "voluntary turnover"
+      - "voluntary attrition"
+
+    definition: >-
+      A Voluntarily Terminated státuszú kilépők száma a vizsgált
+      időszak napi átlagos létszámához viszonyítva.
+
+    status_value: "Voluntarily Terminated"
+    related_metric: "VoluntaryTurnoverRate"
+
+    restriction: >-
+      A közös megegyezés nem sorolható automatikusan az önkéntes
+      fluktuációhoz, és az adatállományban külön nem azonosítható.
+
+    documentation_status: "confirmed"
+
+  - id: "involuntary_turnover"
+    preferred_term: "nem önkéntes fluktuáció"
+    group: "turnover"
+
+    synonyms:
+      - "nem önkéntes kilépési arány"
+      - "munkáltatói megszüntetés"
+      - "elbocsátás"
+      - "elbocsájtás"
+      - "kirúgás"
+      - "leépítés"
+      - "elküldés"
+      - "involuntary turnover"
+      - "involuntary attrition"
+
+    definition: >-
+      A Terminated for Cause státuszú kilépők száma a vizsgált
+      időszak napi átlagos létszámához viszonyítva.
+
+    status_value: "Terminated for Cause"
+    related_metric: "InvoluntaryTurnoverRate"
+
+    restriction: >-
+      A felsorolt hétköznapi kifejezések a kérdések értelmezését segítik,
+      de az adatállomány nem tartalmazza a munkaviszony megszüntetésének
+      részletes okát. A közös megegyezés nem sorolható automatikusan
+      a nem önkéntes fluktuációhoz.
+
+    documentation_status: "confirmed"
+
+  - id: "retirement_exit"
+    preferred_term: "nyugdíjazási kilépés"
+    group: "turnover"
+
+    synonyms:
+      - "nyugdíjba vonulás"
+      - "nyugdíjazás"
+      - "nyugdíjazási kilépési ráta"
+      - "retirement"
+      - "retirement exit"
+
+    definition: >-
+      A Retired státusszal rögzített kilépés. A nyugdíjazási kilépési
+      ráta az ilyen kilépők számát viszonyítja az időszak napi átlagos
+      létszámához.
+
+    status_value: "Retired"
+    related_metric: "RetirementExitRate"
+
+    restriction: >-
+      A nyugdíjazás része a teljes fluktuációnak, de nem tartozik sem
+      az önkéntes, sem a nem önkéntes fluktuációhoz.
+
+    documentation_status: "confirmed"
+
+
+  - id: "mutual_agreement"
+    preferred_term: "közös megegyezés"
+    group: "turnover"
+
+    synonyms:
+      - "közös megegyezéssel történő kilépés"
+      - "közös megegyezéssel történő megszüntetés"
+      - "mutual agreement"
+      - "termination by mutual agreement"
+
+    definition: >-
+      A munkaviszony olyan megszüntetési módja, amelyet bármelyik fél
+      kezdeményezhet, majd a munkáltató és a munkavállaló megállapodással
+      zár le.
+
+    available_in_data: false
+    related_metric: null
+
+    restriction: >-
+      Az adatállományban nincs külön közös megegyezés kategória.
+      Ezért nem elemezhető, és nem sorolható automatikusan sem az
+      önkéntes, sem a nem önkéntes fluktuációhoz.
+
+    documentation_status: "confirmed"
+
+
+  - id: "rolling_turnover"
+    preferred_term: "gördülő fluktuáció"
+    group: "turnover"
+
+    synonyms:
+      - "gördülő fluktuációs ráta"
+      - "rolling turnover"
+      - "rolling attrition"
+      - "mozgó időszaki fluktuáció"
+
+    definition: >-
+      Egy adott referencia-dátummal végződő, folyamatosan elmozduló
+      időszak teljes fluktuációs rátája. A számláló az időszak kilépőinek
+      száma, a nevező az időszak napi átlagos létszáma.
+
+    related_metrics:
+      - "Rolling3MonthTurnoverRate"
+      - "Rolling12MonthTurnoverRate"
+
+    interpretation_rule: >-
+      A gördülő 3 havi mutató gyorsabban jelzi a rövid távú változásokat,
+      míg a gördülő 12 havi mutató kiegyenlítettebb trendet mutat.
+
+    restriction: >-
+      Az egymást követő gördülő időszakok nagyrészt átfedik egymást,
+      ezért az értékeik nem tekinthetők független megfigyeléseknek.
+
+    documentation_status: "confirmed"
+
+  - id: "engagement"
+    preferred_term: "munkavállalói elkötelezettség"
+    group: "engagement"
+
+    synonyms:
+      - "elkötelezettség"
+      - "engagement"
+      - "employee engagement"
+
+    definition: >-
+      A munkavállaló önbevalláson alapuló elkötelezettsége a vállalat
+      és annak céljai iránt, egy 1–5-ös kérdéssel mérve.
+
+    source_field: "EngagementScore"
+    related_metrics:
+      - "AverageEngagementScore"
+      - "AverageEngagementIndex"
+
+    default_metric: "AverageEngagementIndex"
+
+    restriction: >-
+      Nem több kérdésből képzett összetett mutató. Elemzéshez
+      alapértelmezetten a 0–100-as indexet kell használni.
+
+    documentation_status: "confirmed"
+
+
+  - id: "satisfaction"
+    preferred_term: "munkahelyi elégedettség"
+    group: "engagement"
+
+    synonyms:
+      - "elégedettség"
+      - "munkavállalói elégedettség"
+      - "satisfaction"
+      - "employee satisfaction"
+
+    definition: >-
+      A munkavállaló vállalattal mint munkahellyel kapcsolatos
+      általános elégedettsége, egy 1–5-ös kérdéssel mérve.
+
+    source_field: "SatisfactionScore"
+    related_metrics:
+      - "AverageSatisfactionScore"
+      - "AverageSatisfactionIndex"
+
+    default_metric: "AverageSatisfactionIndex"
+
+    restriction: >-
+      Nem több kérdésből képzett elégedettségi index. Elemzéshez
+      alapértelmezetten a 0–100-as indexet kell használni.
+
+    documentation_status: "confirmed"
+
+
+  - id: "work_life_balance"
+    preferred_term: "munka–magánélet egyensúlya"
+    group: "engagement"
+
+    synonyms:
+      - "munka-magánélet egyensúly"
+      - "work-life balance"
+      - "work life balance"
+      - "WLB"
+
+    definition: >-
+      Annak önbevalláson alapuló megítélése, hogy a munkavállalónak
+      a munkája mellett elegendő ideje és energiája jut-e a magánéletére.
+
+    source_field: "WorkLifeBalanceScore"
+    related_metrics:
+      - "AverageWorkLifeBalanceScore"
+      - "AverageWorkLifeBalanceIndex"
+
+    default_metric: "AverageWorkLifeBalanceIndex"
+
+    restriction: >-
+      Az alacsony érték lehetséges kockázati jelzés, de önmagában
+      nem bizonyítja a kiégést. Elemzéshez alapértelmezetten a
+      0–100-as indexet kell használni.
+
+    documentation_status: "confirmed"
+
+  - id: "average_survey_score"
+    preferred_term: "átlagpontszám"
+    group: "engagement"
+
+    synonyms:
+      - "átlagos pontszám"
+      - "1–5-ös átlag"
+      - "mean score"
+      - "average score"
+
+    definition: >-
+      Az adott felmérési kérdés érvényes, 1–5 közötti válaszainak
+      számtani átlaga.
+
+    related_metrics:
+      - "AverageEngagementScore"
+      - "AverageSatisfactionScore"
+      - "AverageWorkLifeBalanceScore"
+
+    default_for_analysis: false
+
+    usage_rule: >-
+      Elemzéshez csak akkor használandó, ha a felhasználó kifejezetten
+      az 1–5-ös skálán mért átlagpontszámot kéri.
+
+    documentation_status: "confirmed"
+
+
+  - id: "survey_index"
+    preferred_term: "0–100-as felmérési index"
+    group: "engagement"
+
+    synonyms:
+      - "index"
+      - "0–100-as pontszám"
+      - "survey index"
+
+    definition: >-
+      Az 1–5-ös átlagpontszám 0–100-as skálára történő lineáris
+      átszámítása a ((átlagpontszám - 1) / 4) * 100 képlettel.
+
+    related_metrics:
+      - "AverageEngagementIndex"
+      - "AverageSatisfactionIndex"
+      - "AverageWorkLifeBalanceIndex"
+
+    default_for_analysis: true
+
+    interpretation_rule: >-
+      Az 1-es átlagpontszám 0, a 3-as 50, az 5-ös pedig 100
+      indexpontnak felel meg.
+
+    restriction: >-
+      Az indexpont nem százalék, és nem a kedvező válaszok aránya.
+
+    documentation_status: "confirmed"
+
+
+  - id: "composite_engagement_index"
+    preferred_term: "összesített engagement-index"
+    group: "engagement"
+
+    synonyms:
+      - "átfogó engagement-index"
+      - "összetett engagement-index"
+      - "composite engagement index"
+
+    definition: >-
+      Az AverageEngagementIndex, az AverageSatisfactionIndex és az
+      AverageWorkLifeBalanceIndex egyenlő súlyú számtani átlaga.
+
+    related_metric: "CompositeEngagementIndex"
+    default_for_analysis: false
+
+    usage_rule: >-
+      Akkor használandó, ha a felhasználó kifejezetten összesített,
+      összetett vagy átfogó engagement-indexet kér.
+
+    restriction: >-
+      Csak akkor számítható ki, ha mindhárom komponensindex rendelkezésre
+      áll. Saját belső mutató, nem külsőleg validált mérőeszköz.
+
+    documentation_status: "confirmed"
+
+  - id: "top2_box"
+    preferred_term: "Top2 Box arány"
+    group: "engagement"
+
+    synonyms:
+      - "TOP2"
+      - "kedvező válaszok aránya"
+      - "pozitív válaszok aránya"
+      - "magas értékelések aránya"
+      - "top two box"
+
+    definition: >-
+      Az érvényes válaszok közül a 4-es vagy 5-ös értéket adó
+      válaszok százalékos aránya.
+
+    score_values:
+      - 4
+      - 5
+
+    related_metrics:
+      - "EngagementTop2BoxRate"
+      - "SatisfactionTop2BoxRate"
+      - "WorkLifeBalanceTop2BoxRate"
+
+    restriction: >-
+      Nem azonos az átlagpontszámmal vagy a 0–100-as indexszel.
+      A 3-as válasz nem tartozik a Top2 Box kategóriába.
+
+    documentation_status: "confirmed"
+
+
+  - id: "low2_box"
+    preferred_term: "Low2 Box arány"
+    group: "engagement"
+
+    synonyms:
+      - "LOW2"
+      - "kedvezőtlen válaszok aránya"
+      - "negatív válaszok aránya"
+      - "alacsony értékelések aránya"
+      - "bottom two box"
+
+    definition: >-
+      Az érvényes válaszok közül az 1-es vagy 2-es értéket adó
+      válaszok százalékos aránya.
+
+    score_values:
+      - 1
+      - 2
+
+    related_metrics:
+      - "EngagementLow2BoxRate"
+      - "SatisfactionLow2BoxRate"
+      - "WorkLifeBalanceLow2BoxRate"
+
+    restriction: >-
+      Nem azonos az átlagpontszámmal vagy a 0–100-as indexszel.
+      A 3-as válasz nem tartozik a Low2 Box kategóriába.
+
+    documentation_status: "confirmed"
+
+
+  - id: "survey_wave"
+    preferred_term: "felmérési hullám"
+    group: "engagement"
+
+    synonyms:
+      - "hullám"
+      - "mérési hullám"
+      - "survey wave"
+      - "wave"
+
+    definition: >-
+      Egy meghatározott időpontban elindított munkavállalói felmérés
+      és az ahhoz tartozó válaszok összessége.
+
+    source_field: "SurveyWaveID"
+
+    selection_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell
+      használni. Több hullám eredményeit alapértelmezetten külön
+      kell bemutatni.
+
+    documentation_status: "confirmed"
+
+
+  - id: "survey_response_rate"
+    preferred_term: "felmérési válaszadási arány"
+    group: "engagement"
+
+    synonyms:
+      - "válaszadási arány"
+      - "kitöltési arány"
+      - "response rate"
+      - "survey participation rate"
+
+    definition: >-
+      Az adott hullámban válaszoló egyedi munkavállalók száma
+      a felmérés indulásakor jogosult munkavállalók számához viszonyítva.
+
+    related_metric: "SurveyResponseRate"
+
+    eligibility_rule: >-
+      Jogosult az a munkavállaló, akinek StartDate <= SurveyLaunchDate,
+      és az ExitDate értéke üres vagy ExitDate > SurveyLaunchDate.
+
+    restriction: >-
+      A magas válaszadási arány önmagában nem zárja ki a válaszhiányból
+      eredő szisztematikus torzítást.
+
+    documentation_status: "confirmed"
+
+  - id: "pooled_wave_result"
+    preferred_term: "összevont hullámeredmény"
+    group: "engagement"
+
+    synonyms:
+      - "hullámok összevonása"
+      - "összesített hullámeredmény"
+      - "pooled result"
+      - "combined survey waves"
+
+    definition: >-
+      Több felmérési hullám válaszrekordjainak közös elemzésével
+      előállított eredmény.
+
+    related_metrics:
+      - "PooledAverageEngagementIndex"
+      - "PooledAverageSatisfactionIndex"
+      - "PooledAverageWorkLifeBalanceIndex"
+      - "PooledCompositeEngagementIndex"
+
+    calculation_rule: >-
+      Az összevonás válaszrekord-alapú: minden érvényes válasz azonos
+      súlyt kap, ezért a nagyobb válaszadószámú hullám nagyobb hatással
+      van az eredményre.
+
+    usage_rule: >-
+      Csak a felhasználó kifejezett kérésére használható. Alapértelmezetten
+      a hullámokat külön kell bemutatni.
+
+    documentation_status: "confirmed"
+
+
+  - id: "wave_change"
+    preferred_term: "hullámok közötti változás"
+    group: "engagement"
+
+    synonyms:
+      - "változás a hullámok között"
+      - "hullámközi változás"
+      - "wave-over-wave change"
+      - "survey trend"
+
+    definition: >-
+      Egy felmérési index későbbi és korábbi hullámban mért értékének
+      különbsége.
+
+    related_metrics:
+      - "EngagementIndexChange"
+      - "SatisfactionIndexChange"
+      - "WorkLifeBalanceIndexChange"
+
+    calculation_rule: >-
+      Későbbi hullám indexértéke mínusz a korábbi hullám indexértéke.
+
+    unit: "indexpont"
+
+    interpretation_rule: >-
+      A pozitív érték növekedést, a negatív érték csökkenést,
+      a nulla változatlanságot jelent.
+
+    restriction: >-
+      A változás nem százalékos változás. Önmagában nem bizonyítja,
+      hogy a két hullám közötti eltérés statisztikailag vagy
+      gyakorlatilag jelentős.
+
+    documentation_status: "confirmed"
+
+
+  - id: "survey_respondent"
+    preferred_term: "felmérési válaszadó"
+    group: "engagement"
+
+    synonyms:
+      - "válaszadó"
+      - "kitöltő"
+      - "respondent"
+      - "survey participant"
+
+    definition: >-
+      Az a munkavállaló, aki az adott felmérési hullámban érvényes
+      válaszrekorddal rendelkezik.
+
+    identification_fields:
+      - "EmpID"
+      - "SurveyWaveID"
+
+    restriction: >-
+      A felmérési eredmények közvetlenül a válaszadók véleményét írják
+      le. Nem válaszadókra vagy a teljes munkavállalói állományra történő
+      általánosításkor figyelembe kell venni a válaszhiány lehetséges
+      torzítását.
+
+    documentation_status: "confirmed"
+
+  - id: "training_participant"
+    preferred_term: "képzési résztvevő"
+    group: "training"
+
+    synonyms:
+      - "résztvevő"
+      - "képzésben részt vevő munkavállaló"
+      - "training participant"
+      - "trainee"
+
+    definition: >-
+      Olyan egyedi munkavállaló, akinek a vizsgált időszakban legalább
+      egy Completed vagy Incomplete státuszú képzési rekordja van.
+
+    related_metric: "TrainingParticipantCount"
+
+    restriction: >-
+      A Cancelled státuszú képzés nem számít részvételnek. Egy munkavállaló
+      több képzési rekord esetén is csak egyszer számítandó.
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_participation_rate"
+    preferred_term: "képzési részvételi arány"
+    group: "training"
+
+    synonyms:
+      - "képzési részvétel"
+      - "résztvevők aránya"
+      - "training participation rate"
+
+    definition: >-
+      Az időszakban legalább egy Completed vagy Incomplete képzéssel
+      rendelkező egyedi munkavállalók aránya az időszakban legalább
+      egy napon állományban lévő munkavállalók között.
+
+    related_metric: "TrainingParticipationRate"
+
+    restriction: >-
+      A Cancelled képzések nem számítanak részvételnek. A mutató
+      önmagában nem jelzi a képzések sikeres teljesítését.
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_completion_rate"
+    preferred_term: "képzési teljesítési arány"
+    group: "training"
+
+    synonyms:
+      - "teljesített képzések aránya"
+      - "befejezési arány"
+      - "completion rate"
+      - "training completion rate"
+
+    definition: >-
+      A Completed státuszú képzési rekordok aránya a Completed és
+      Incomplete státuszú képzési rekordok együttes számán belül.
+
+    related_metric: "TrainingCompletionRate"
+    calculation_level: "képzési rekord"
+
+    restriction: >-
+      A Cancelled rekordok kimaradnak a nevezőből. A mutató képzési
+      rekordokat, nem egyedi munkavállalókat számol.
+
+    documentation_status: "confirmed"
+
+
+  - id: "successful_training_coverage"
+    preferred_term: "sikeres képzési lefedettség"
+    group: "training"
+
+    synonyms:
+      - "sikeresen képzettek aránya"
+      - "képzést teljesítők dolgozói aránya"
+      - "successful training coverage"
+
+    definition: >-
+      Az időszakban legalább egy Completed képzéssel rendelkező egyedi
+      munkavállalók aránya az időszakban legalább egy napon állományban
+      lévő munkavállalók között.
+
+    related_metric: "SuccessfulTrainingCoverage"
+    calculation_level: "egyedi munkavállaló"
+
+    restriction: >-
+      Nem nevezhető képzési teljesítési aránynak, mert a nevezője
+      nem a képzési résztvevők, hanem az érintett teljes dolgozói állomány.
+
+    documentation_status: "confirmed"
+
+  - id: "training_incomplete_rate"
+    preferred_term: "félbehagyott képzések aránya"
+    group: "training"
+
+    synonyms:
+      - "nem teljesített képzések aránya"
+      - "Incomplete arány"
+      - "training incomplete rate"
+      - "non-completion rate"
+
+    definition: >-
+      Az Incomplete státuszú képzési rekordok aránya a Completed és
+      Incomplete státuszú képzési rekordok együttes számán belül.
+
+    related_metric: "TrainingIncompleteRate"
+
+    restriction: >-
+      A Cancelled rekordok kimaradnak a nevezőből. A TrainingCompletionRate
+      és a TrainingIncompleteRate összege a kerekítési eltéréstől
+      eltekintve 100%.
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_cancellation_rate"
+    preferred_term: "törölt képzések aránya"
+    group: "training"
+
+    synonyms:
+      - "lemondott képzések aránya"
+      - "Cancelled arány"
+      - "cancellation rate"
+      - "training cancellation rate"
+
+    definition: >-
+      A Cancelled státuszú képzési rekordok aránya az összes érvényes
+      CompletionStatus értékű képzési rekord között.
+
+    related_metric: "TrainingCancellationRate"
+
+    restriction: >-
+      A törölt képzés nem számít részvételnek, teljesített vagy
+      félbehagyott képzésnek.
+
+    documentation_status: "confirmed"
+
+
+  - id: "assessment_pass_rate"
+    preferred_term: "vizsgasikerességi arány"
+    group: "training"
+
+    synonyms:
+      - "vizsgaeredményesség"
+      - "sikeres vizsgák aránya"
+      - "pass rate"
+      - "assessment pass rate"
+
+    definition: >-
+      A Passed eredményű képzési rekordok aránya a Passed és Failed
+      eredményű képzési rekordok együttes számán belül.
+
+    related_metric: "AssessmentPassRate"
+
+    restriction: >-
+      Csak az értékelhető, Passed vagy Failed eredménnyel rendelkező
+      képzési rekordokat tartalmazza.
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_feedback_response_rate"
+    preferred_term: "képzési visszajelzési arány"
+    group: "training"
+
+    synonyms:
+      - "értékelési kitöltési arány"
+      - "visszajelzést adók aránya"
+      - "feedback response rate"
+      - "training feedback rate"
+
+    definition: >-
+      A visszajelzést tartalmazó, nem törölt képzési rekordok aránya
+      az összes Completed vagy Incomplete képzési rekord között.
+
+    source_field: "FeedbackSubmitted"
+    submitted_value: "Yes"
+    related_metric: "TrainingFeedbackResponseRate"
+
+    restriction: >-
+      A Cancelled rekordok nem részei a nevezőnek. A mutató képzési
+      rekordokat, nem egyedi munkavállalókat számol.
+
+    documentation_status: "confirmed"
+
+  - id: "training_category"
+    preferred_term: "képzési kategória"
+    group: "training"
+
+    synonyms:
+      - "képzéskategória"
+      - "tematikus kategória"
+      - "training category"
+
+    definition: >-
+      A képzési programok magasabb szintű, témakör szerinti csoportosítása.
+
+    source_field: "TrainingCategory"
+    child_field: "TrainingProgramName"
+
+    hierarchy_rule: >-
+      Egy képzési kategória több konkrét képzési programot foglalhat magában.
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_program"
+    preferred_term: "képzési program"
+    group: "training"
+
+    synonyms:
+      - "tanfolyam"
+      - "kurzus"
+      - "képzés"
+      - "training program"
+      - "course"
+
+    definition: >-
+      Egy konkrét képzés vagy tanfolyam megnevezése a képzési
+      kategórián belül.
+
+    source_field: "TrainingProgramName"
+    parent_field: "TrainingCategory"
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_type"
+    preferred_term: "képzés típusa"
+    group: "training"
+
+    synonyms:
+      - "belső vagy külső képzés"
+      - "training type"
+
+    definition: >-
+      A képzés belső vagy külső besorolása a szervező, az oktató,
+      illetve a digitális tananyag gazdája alapján.
+
+    source_field: "TrainingType"
+
+    value_definitions:
+      Internal: >-
+        A vállalat által szervezett, saját oktatóval vagy belső
+        digitális tananyaggal biztosított képzés.
+      External: >-
+        Külső szolgáltató által szervezett vagy külső oktatóval
+        biztosított képzés.
+
+    classification_rule: >-
+      Oktató nélküli online képzésnél a besorolást a tananyag gazdája,
+      nem a Trainer mező kitöltöttsége határozza meg.
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_delivery_mode"
+    preferred_term: "képzési forma"
+    group: "training"
+
+    synonyms:
+      - "lebonyolítási mód"
+      - "oktatási forma"
+      - "delivery mode"
+      - "training format"
+
+    definition: >-
+      A képzés megtartásának módja.
+
+    source_field: "DeliveryMode"
+
+    value_definitions:
+      In-person: "Személyes jelenléttel megtartott képzés."
+      Live Online: "Oktató által élőben, online megtartott képzés."
+      Self-paced Online: "Saját ütemben elvégezhető digitális képzés."
+      Hybrid: "Személyes és online elemeket is tartalmazó képzés."
+
+    documentation_status: "confirmed"
+
+  - id: "trainer"
+    preferred_term: "oktató"
+    group: "training"
+
+    synonyms:
+      - "tréner"
+      - "képző"
+      - "trainer"
+      - "instructor"
+
+    definition: >-
+      A személyes, élő online vagy hibrid képzést megtartó oktató.
+
+    source_field: "Trainer"
+
+    analysis_rule: >-
+      Konkrét oktatók aggregált eredményei egyenként és egymással
+      összehasonlítva is vizsgálhatók.
+
+    output_rule: >-
+      Már egy értékeléstől megjeleníthető az oktató aggregált eredménye,
+      de az elemszámot mindig közölni kell. Egyéni válaszadói rekord
+      nem jeleníthető meg.
+
+    missing_value_meaning: >-
+      Self-paced Online képzésnél nincs személyes oktató, ezért a mező üres.
+
+    documentation_status: "confirmed"
+
+
+  - id: "trainer_gender"
+    preferred_term: "oktató neme"
+    group: "training"
+
+    synonyms:
+      - "tréner neme"
+      - "trainer gender"
+      - "instructor gender"
+
+    definition: >-
+      A képzést megtartó oktató adatállományban rögzített neme.
+
+    source_field: "TrainerGender"
+    privacy_class: "sensitive_personal_attribute"
+
+    allowed_uses:
+      - "oktatói értékelések összehasonlítása az oktató neme szerint"
+      - "az oktató és a válaszadó nemének együttes vizsgálata"
+      - "válaszadói csoportok szerinti aggregált összehasonlítás"
+
+    restriction: >-
+      Csak aggregált elemzéshez használható. A különbségekből oksági
+      kapcsolat vagy magyarázat nem állapítható meg.
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_evaluation"
+    preferred_term: "képzési értékelés"
+    group: "training"
+
+    synonyms:
+      - "képzési visszajelzés"
+      - "képzésértékelés"
+      - "training evaluation"
+      - "training feedback"
+
+    definition: >-
+      A résztvevő képzésről adott, 1–5-ös egyetértési skálán rögzített
+      értékelése.
+
+    evaluation_fields:
+      - "OverallSatisfactionScore"
+      - "TrainerEvaluationScore"
+      - "JobRelevanceScore"
+      - "PersonalRelevanceScore"
+      - "DigitalContentUsabilityScore"
+
+    scale_labels:
+      1: "Egyáltalán nem értek egyet"
+      2: "Inkább nem értek egyet"
+      3: "Részben egyetértek, részben nem"
+      4: "Inkább egyetértek"
+      5: "Teljes mértékben egyetértek"
+
+    output_rule: >-
+      Egyéni válaszok nem jeleníthetők meg; csak aggregált eredmények
+      közölhetők.
+
+    documentation_status: "confirmed"
+
+  - id: "overall_training_satisfaction"
+    preferred_term: "képzéssel való általános elégedettség"
+    group: "training"
+
+    synonyms:
+      - "képzési elégedettség"
+      - "általános képzésértékelés"
+      - "overall training satisfaction"
+
+    definition: >-
+      A résztvevő képzéssel kapcsolatos összesített elégedettsége.
+
+    source_field: "OverallSatisfactionScore"
+    related_metrics:
+      - "AverageOverallSatisfactionScore"
+      - "AverageOverallSatisfactionIndex"
+      - "OverallSatisfactionTop2BoxRate"
+      - "OverallSatisfactionLow2BoxRate"
+
+    default_metric: "AverageOverallSatisfactionIndex"
+    documentation_status: "confirmed"
+
+
+  - id: "trainer_evaluation"
+    preferred_term: "oktató értékelése"
+    group: "training"
+
+    synonyms:
+      - "oktatói értékelés"
+      - "trénerértékelés"
+      - "trainer evaluation"
+      - "instructor evaluation"
+
+    definition: >-
+      Annak résztvevői értékelése, hogy az oktató mennyire eredményesen
+      támogatta a képzési célok elérését.
+
+    source_field: "TrainerEvaluationScore"
+    related_metrics:
+      - "AverageTrainerEvaluationScore"
+      - "AverageTrainerEvaluationIndex"
+      - "TrainerEvaluationTop2BoxRate"
+      - "TrainerEvaluationLow2BoxRate"
+
+    default_metric: "AverageTrainerEvaluationIndex"
+
+    restriction: >-
+      Self-paced Online képzésnél nincs személyes oktató, ezért ez a
+      mutató nem értelmezhető.
+
+    documentation_status: "confirmed"
+
+
+  - id: "job_relevance"
+    preferred_term: "munkaköri relevancia"
+    group: "training"
+
+    synonyms:
+      - "munkakörhöz való kapcsolódás"
+      - "munkahelyi hasznosíthatóság"
+      - "job relevance"
+
+    definition: >-
+      Annak résztvevői megítélése, hogy a képzésen megszerzett tudás
+      és készségek támogatják-e a jelenlegi munkakör eredményes ellátását.
+
+    source_field: "JobRelevanceScore"
+    related_metrics:
+      - "AverageJobRelevanceScore"
+      - "AverageJobRelevanceIndex"
+      - "JobRelevanceTop2BoxRate"
+      - "JobRelevanceLow2BoxRate"
+
+    default_metric: "AverageJobRelevanceIndex"
+    documentation_status: "confirmed"
+
+
+  - id: "personal_relevance"
+    preferred_term: "személyes szakmai relevancia"
+    group: "training"
+
+    synonyms:
+      - "személyes relevancia"
+      - "szakmai fejlődés támogatása"
+      - "personal relevance"
+
+    definition: >-
+      Annak résztvevői megítélése, hogy a képzés mennyiben járult hozzá
+      a személyes szakmai fejlődéséhez.
+
+    source_field: "PersonalRelevanceScore"
+    related_metrics:
+      - "AveragePersonalRelevanceScore"
+      - "AveragePersonalRelevanceIndex"
+      - "PersonalRelevanceTop2BoxRate"
+      - "PersonalRelevanceLow2BoxRate"
+
+    default_metric: "AveragePersonalRelevanceIndex"
+    documentation_status: "confirmed"
+
+
+  - id: "digital_content_usability"
+    preferred_term: "digitális tananyag használhatósága"
+    group: "training"
+
+    synonyms:
+      - "digitális tartalom használhatósága"
+      - "online tananyag használhatósága"
+      - "digital content usability"
+
+    definition: >-
+      A digitális képzési tartalom kezelhetőségének és használhatóságának
+      résztvevői értékelése.
+
+    source_field: "DigitalContentUsabilityScore"
+    related_metrics:
+      - "AverageDigitalContentUsabilityScore"
+      - "AverageDigitalContentUsabilityIndex"
+      - "DigitalContentUsabilityTop2BoxRate"
+      - "DigitalContentUsabilityLow2BoxRate"
+
+    default_metric: "AverageDigitalContentUsabilityIndex"
+
+    restriction: >-
+      Csak digitális tananyagot tartalmazó képzéseknél értelmezhető.
+
+    documentation_status: "confirmed"
+
+  - id: "total_training_cost"
+    preferred_term: "összes képzési költség"
+    group: "training"
+
+    synonyms:
+      - "teljes képzési költség"
+      - "képzési ráfordítás"
+      - "total training cost"
+
+    definition: >-
+      A vizsgált időszak nem törölt képzési rekordjaihoz tartozó
+      TrainingCostUSD értékek összege.
+
+    source_field: "TrainingCostUSD"
+    related_metric: "TotalTrainingCost"
+    unit: "USD"
+
+    restriction: >-
+      A Cancelled képzések költsége nem szerepel a számításban.
+      A hiányzó költség nem kezelhető nulla értékként.
+
+    documentation_status: "confirmed"
+
+
+  - id: "cost_per_participant"
+    preferred_term: "egy résztvevőre jutó képzési költség"
+    group: "training"
+
+    synonyms:
+      - "résztvevőnkénti képzési költség"
+      - "training cost per participant"
+      - "cost per participant"
+
+    definition: >-
+      A nem törölt képzések összes költsége osztva az ezeken részt vevő
+      egyedi munkavállalók számával.
+
+    related_metric: "CostPerParticipant"
+    unit: "USD/fő"
+
+    restriction: >-
+      Egy résztvevő több képzésének költsége összeadódik. A mutató
+      nem azonos az egy képzési rekordra jutó átlagköltséggel.
+
+    documentation_status: "confirmed"
+
+
+  - id: "cost_per_successful_completion"
+    preferred_term: "sikeres teljesítésre jutó képzési költség"
+    group: "training"
+
+    synonyms:
+      - "teljesítésenkénti képzési költség"
+      - "cost per successful completion"
+      - "cost per completion"
+
+    definition: >-
+      A nem törölt képzések összes költsége osztva a Completed
+      státuszú képzési rekordok számával.
+
+    related_metric: "CostPerSuccessfulCompletion"
+    unit: "USD/sikeres teljesítés"
+
+    restriction: >-
+      Az Incomplete képzések költsége szerepel a számlálóban, de ezek
+      a rekordok nem szerepelnek a nevezőben. A Cancelled képzések
+      költsége kimarad.
+
+    documentation_status: "confirmed"
+
+
+  - id: "grouped_training_cost"
+    preferred_term: "csoportosított képzési költség"
+    group: "training"
+
+    synonyms:
+      - "képzési költség programonként"
+      - "képzési költség tanfolyamonként"
+      - "képzési költség szolgáltatónként"
+      - "grouped training cost"
+
+    definition: >-
+      A nem törölt képzési rekordok teljes költsége képzési program
+      vagy szolgáltató szerinti bontásban.
+
+    related_metrics:
+      - "TrainingCostByProgram"
+      - "TrainingCostByProvider"
+
+    restriction: >-
+      Teljes költséget, nem egységköltséget mér. A magasabb értéket
+      a nagyobb résztvevőszám vagy eltérő programösszetétel is okozhatja.
+
+    documentation_status: "confirmed"
+
+  - id: "population"
+    preferred_term: "sokaság"
+    group: "statistics"
+
+    synonyms:
+      - "alapsokaság"
+      - "teljes sokaság"
+      - "population"
+
+    definition: >-
+      Az elemzés szempontjából releváns összes személy, rekord vagy
+      esemény együttese, amelyre a következtetés vonatkozik.
+
+    interpretation_rule: >-
+      Ha az adatállomány a teljes meghatározott sokaságot tartalmazza,
+      az eredmények leíró jellegűek, és nincs mintavételi bizonytalanság.
+
+    documentation_status: "confirmed"
+
+
+  - id: "sample"
+    preferred_term: "minta"
+    group: "statistics"
+
+    synonyms:
+      - "elemzési minta"
+      - "sample"
+
+    definition: >-
+      A sokaság megfigyelt részhalmaza, amelyből a teljes sokaságra
+      próbálunk következtetni.
+
+    interpretation_rule: >-
+      A nagy mintaarány önmagában nem szünteti meg a torzítás veszélyét.
+      A minta összetételét és a kimaradások rendszerességét is vizsgálni kell.
+
+    documentation_status: "confirmed"
+
+
+  - id: "descriptive_analysis"
+    preferred_term: "leíró elemzés"
+    group: "statistics"
+
+    synonyms:
+      - "deskriptív elemzés"
+      - "tényadatok bemutatása"
+      - "descriptive analysis"
+
+    definition: >-
+      A rendelkezésre álló adatok összefoglalása átlagokkal, arányokkal,
+      megoszlásokkal és különbségekkel, általánosító következtetés nélkül.
+
+    usage_rule: >-
+      Teljes sokaságot lefedő HR-adatoknál ez az alapértelmezett
+      elemzési megközelítés.
+
+    documentation_status: "confirmed"
+
+
+  - id: "inferential_analysis"
+    preferred_term: "következtető statisztikai elemzés"
+    group: "statistics"
+
+    synonyms:
+      - "statisztikai következtetés"
+      - "inferenciális elemzés"
+      - "inferential analysis"
+
+    definition: >-
+      Mintából a tágabb sokaságra történő következtetés statisztikai
+      bizonytalanságának vizsgálata.
+
+    usage_rule: >-
+      Csak akkor alkalmazható, ha az elemzés célja a megfigyelt adatokon
+      túli általánosítás, és ennek feltételei megfelelően teljesülnek.
+
+    restriction: >-
+      Teljes sokaság leírásánál a szignifikanciateszt alapértelmezetten
+      nem szükséges.
+
+    documentation_status: "confirmed"
+
+  - id: "arithmetic_mean"
+    preferred_term: "számtani átlag"
+    group: "statistics"
+
+    synonyms:
+      - "átlag"
+      - "átlagérték"
+      - "mean"
+      - "average"
+
+    definition: >-
+      Az érvényes értékek összege osztva az érvényes megfigyelések számával.
+
+    restriction: >-
+      Szélsőséges értékek befolyásolhatják, ezért szükség esetén
+      a mediánnal és a szórással együtt értelmezendő.
+
+    documentation_status: "confirmed"
+
+
+  - id: "median"
+    preferred_term: "medián"
+    group: "statistics"
+
+    synonyms:
+      - "középső érték"
+      - "median"
+
+    definition: >-
+      A sorba rendezett értékek középső értéke; páros elemszámnál
+      a két középső érték átlaga.
+
+    interpretation_rule: >-
+      A szélsőséges értékek kevésbé befolyásolják, mint a számtani átlagot.
+
+    documentation_status: "confirmed"
+
+
+  - id: "standard_deviation"
+    preferred_term: "szórás"
+    group: "statistics"
+
+    synonyms:
+      - "standard deviation"
+      - "SD"
+
+    definition: >-
+      Az értékek átlag körüli szóródásának mértéke.
+
+    interpretation_rule: >-
+      A nagyobb szórás változatosabb, a kisebb szórás egységesebb
+      válaszokat vagy értékeket jelez.
+
+    documentation_status: "confirmed"
+
+
+  - id: "percentage_point"
+    preferred_term: "százalékpont"
+    group: "statistics"
+
+    synonyms:
+      - "százalékpontos eltérés"
+      - "percentage point"
+      - "pp"
+
+    definition: >-
+      Két százalékos arány közötti abszolút különbség.
+
+    example: >-
+      A 40%-ról 50%-ra történő növekedés 10 százalékpont,
+      relatív értelemben pedig 25%.
+
+    restriction: >-
+      Nem azonos a százalékos változással.
+
+    documentation_status: "confirmed"
+
+
+  - id: "index_point"
+    preferred_term: "indexpont"
+    group: "statistics"
+
+    synonyms:
+      - "indexpontnyi eltérés"
+      - "index point"
+
+    definition: >-
+      Két azonos indexskálán, például 0–100-as skálán mért érték
+      közötti abszolút különbség.
+
+    restriction: >-
+      Nem százalék és nem százalékpont.
+
+    documentation_status: "confirmed"
+
+  - id: "p_value"
+    preferred_term: "p-érték"
+    group: "statistics"
+
+    synonyms:
+      - "p-value"
+      - "significance probability"
+
+    definition: >-
+      Annak valószínűségét jelzi, hogy a megfigyelthez legalább ilyen
+      szélsőséges eredmény adódna, ha a statisztikai próba nullhipotézise igaz.
+
+    restriction: >-
+      Nem annak valószínűsége, hogy a nullhipotézis igaz, és nem mutatja
+      meg a különbség nagyságát vagy üzleti fontosságát.
+
+    documentation_status: "confirmed"
+
+
+  - id: "statistical_significance"
+    preferred_term: "statisztikai szignifikancia"
+    group: "statistics"
+
+    synonyms:
+      - "szignifikáns különbség"
+      - "statistical significance"
+
+    definition: >-
+      Olyan statisztikai eredmény, amelynél az egyetlen vizsgálathoz
+      tartozó vagy a többszörös tesztelés miatt korrigált p-érték
+      kisebb a választott szignifikanciaszintnél.
+
+    default_significance_level: 0.05
+    related_rule: "statistical_significance"
+
+    restriction: >-
+      Csak indokolt következtető elemzés és megfelelően teljesülő
+      próbafeltételek mellett állítható. Nem azonos a gyakorlati
+      vagy üzleti jelentőséggel.
+
+    documentation_status: "confirmed"
+
+
+  - id: "confidence_interval"
+    preferred_term: "konfidenciaintervallum"
+    group: "statistics"
+
+    synonyms:
+      - "megbízhatósági intervallum"
+      - "confidence interval"
+      - "CI"
+
+    definition: >-
+      A becsült érték bizonytalanságát kifejező tartomány, amelyet
+      meghatározott konfidenciaszinthez számítunk.
+
+    default_confidence_level: 0.95
+
+    interpretation_rule: >-
+      A keskenyebb intervallum pontosabb, a szélesebb intervallum
+      bizonytalanabb becslést jelez.
+
+    restriction: >-
+      Nem jelenti azt, hogy az adott egyszer kiszámított intervallum
+      95%-os valószínűséggel tartalmazza a valódi értéket.
+
+    documentation_status: "confirmed"
+
+
+  - id: "effect_size"
+    preferred_term: "hatásméret"
+    group: "statistics"
+
+    synonyms:
+      - "hatás nagysága"
+      - "effect size"
+
+    definition: >-
+      A csoportok közötti eltérés vagy a változók közötti kapcsolat
+      nagyságát számszerűsítő mutató.
+
+    related_rule: "effect_size_reporting"
+
+    interpretation_rule: >-
+      A p-érték mellett kell közölni, és az üzleti, HR- és módszertani
+      környezettel együtt kell értelmezni.
+
+    restriction: >-
+      Általános küszöbérték alapján önmagában nem minősíthető fontosnak
+      vagy jelentéktelennek.
+
+    documentation_status: "confirmed"
+
+
+  - id: "practical_significance"
+    preferred_term: "gyakorlati jelentőség"
+    group: "statistics"
+
+    synonyms:
+      - "üzleti jelentőség"
+      - "érdemi különbség"
+      - "practical significance"
+      - "business relevance"
+
+    definition: >-
+      Annak megítélése, hogy egy eltérés vagy kapcsolat nagysága
+      HR- vagy üzleti szempontból számottevő-e.
+
+    related_rule: "practical_significance"
+
+    interpretation_rule: >-
+      A tényleges különbség, a hatásméret, a konfidenciaintervallum,
+      az elemszám és az üzleti környezet együttesen értékelendő.
+
+    restriction: >-
+      Pusztán a p-érték alapján egy eredmény nem minősíthető fontosnak
+      vagy döntést megalapozónak.
+
+    documentation_status: "confirmed"
+
+  - id: "multiple_testing"
+    preferred_term: "többszörös statisztikai tesztelés"
+    group: "statistics"
+
+    synonyms:
+      - "többszörös összehasonlítás"
+      - "multiple testing"
+      - "multiple comparisons"
+
+    definition: >-
+      Több statisztikai próba egyidejű alkalmazása, amely növeli
+      legalább egy téves pozitív eredmény valószínűségét.
+
+    related_rule: "multiple_testing_correction"
+
+    correction_methods:
+      planned_comparisons: "Holm-korrekció"
+      exploratory_many_tests: "Benjamini–Hochberg FDR-korrekció"
+
+    restriction: >-
+      Több összehasonlítás esetén korrigálatlan p-érték alapján
+      nem állítható statisztikai szignifikancia.
+
+    documentation_status: "confirmed"
+
+
+  - id: "correlation"
+    preferred_term: "korreláció"
+    group: "statistics"
+
+    synonyms:
+      - "együttjárás"
+      - "statisztikai kapcsolat"
+      - "correlation"
+
+    definition: >-
+      Két változó együttmozgásának irányát és erősségét leíró
+      statisztikai kapcsolat.
+
+    related_rule: "correlation_analysis"
+
+    interpretation_rule: >-
+      Pozitív korrelációnál a változók jellemzően azonos, negatív
+      korrelációnál ellentétes irányban változnak.
+
+    restriction: >-
+      A korreláció nem bizonyít oksági kapcsolatot.
+
+    documentation_status: "confirmed"
+
+
+  - id: "causality"
+    preferred_term: "oksági kapcsolat"
+    group: "statistics"
+
+    synonyms:
+      - "ok-okozati kapcsolat"
+      - "kauzalitás"
+      - "causality"
+      - "causal effect"
+
+    definition: >-
+      Olyan kapcsolat, amelyben az egyik tényező változása ténylegesen
+      előidézi a másik tényező változását.
+
+    related_rule: "causal_inference_restriction"
+
+    restriction: >-
+      A projekt megfigyeléses HR-adataiból oksági kapcsolat nem
+      állapítható meg. Csak együttjárás, különbség vagy kapcsolat jelezhető.
+
+    documentation_status: "confirmed"
+
+
+  - id: "nonresponse_bias"
+    preferred_term: "válaszhiányból eredő torzítás"
+    group: "statistics"
+
+    synonyms:
+      - "nemválaszolási torzítás"
+      - "nonresponse bias"
+      - "response bias"
+
+    definition: >-
+      Olyan torzítás, amely akkor keletkezhet, ha a felmérésre válaszolók
+      és nem válaszolók összetétele vagy véleménye rendszeresen eltér.
+
+    related_rule: "nonresponse_bias_analysis"
+
+    analysis_rule: >-
+      A válaszadási arányokat és a válaszolók összetételét elérhető
+      munkavállalói jellemzők szerint is vizsgálni kell.
+
+    restriction: >-
+      A 70–80%-os válaszadási arány sem zárja ki automatikusan
+      a szisztematikus válaszhiányt.
+
+    documentation_status: "confirmed"
+
+
+  - id: "weighting"
+    preferred_term: "statisztikai súlyozás"
+    group: "statistics"
+
+    synonyms:
+      - "minta súlyozása"
+      - "utólagos súlyozás"
+      - "weighting"
+      - "survey weighting"
+
+    definition: >-
+      A megfigyelések eltérő súllyal történő figyelembevétele annak
+      érdekében, hogy az eredmények jobban tükrözzék a célzott sokaságot.
+
+    related_rule: "weighting_rule"
+    current_project_setting: "unweighted"
+
+    restriction: >-
+      A demóban demográfiai vagy szervezeti súlyozás nem alkalmazható.
+      Ilyen súlyozás később csak külön dokumentált módszertani szabály
+      alapján vezethető be.
+
+    documentation_status: "confirmed"
+
+  - id: "minimum_sample_for_inference"
+    preferred_term: "minimális elemszám következtető elemzéshez"
+    group: "statistics"
+
+    synonyms:
+      - "statisztikai minimum elemszám"
+      - "minimum sample size"
+      - "minimum group size for inference"
+
+    definition: >-
+      A statisztikai következtetéshez szükséges legkisebb csoportonkénti
+      megfigyelésszám.
+
+    default_minimum_per_group: 20
+    related_rule: "minimum_sample_for_inference"
+
+    restriction: >-
+      A 20 fős minimum nem garantál megfelelő statisztikai erőt.
+      Kis mintánál a nem szignifikáns eredmény nem bizonyítja,
+      hogy nincs különbség.
+
+    documentation_status: "confirmed"
+
+
+  - id: "repeated_observations"
+    preferred_term: "ismételt megfigyelések"
+    group: "statistics"
+
+    synonyms:
+      - "ismételt mérések"
+      - "többszörös rekordok"
+      - "repeated observations"
+      - "repeated measures"
+
+    definition: >-
+      Ugyanahhoz a munkavállalóhoz tartozó több felmérési válasz
+      vagy képzési rekord.
+
+    related_rule: "repeated_observations"
+
+    restriction: >-
+      Az azonos munkavállalóhoz tartozó rekordok nem tekinthetők
+      automatikusan egymástól független megfigyeléseknek.
+
+    documentation_status: "confirmed"
+
+
+  - id: "missing_value"
+    preferred_term: "hiányzó érték"
+    group: "statistics"
+
+    synonyms:
+      - "adathiány"
+      - "üres érték"
+      - "missing value"
+      - "null value"
+
+    definition: >-
+      Olyan mezőérték, amely az adott rekordban nincs rögzítve.
+
+    related_rule: "analytical_missing_data_handling"
+
+    interpretation_rule: >-
+      A hiányzó érték jelentését mezőnként kell meghatározni.
+      Nem kezelhető automatikusan nullaként vagy negatív válaszként.
+
+    documentation_status: "confirmed"
+
+
+  - id: "outlier"
+    preferred_term: "kiugró érték"
+    group: "statistics"
+
+    synonyms:
+      - "szélsőséges érték"
+      - "outlier"
+      - "extreme value"
+
+    definition: >-
+      A többi megfigyeléstől szokatlanul nagy mértékben eltérő érték.
+
+    related_rule: "outlier_handling"
+
+    restriction: >-
+      Kiugró érték nem törölhető automatikusan. Először ellenőrizni kell,
+      hogy adathiba, valós ritka eset vagy az eloszlás természetes része-e.
+
+    documentation_status: "confirmed"
+
+
+  - id: "confounding"
+    preferred_term: "zavaró tényező"
+    group: "statistics"
+
+    synonyms:
+      - "háttértényező"
+      - "confounder"
+      - "confounding variable"
+
+    definition: >-
+      Olyan harmadik változó, amely összefügghet a vizsgált tényezővel
+      és az eredménnyel is, ezért torzíthatja a megfigyelt kapcsolatot.
+
+    related_rule: "confounding_and_adjustment"
+
+    restriction: >-
+      A háttértényezőkre korrigált statisztikai kapcsolat sem bizonyít
+      önmagában oksági hatást.
+
+    documentation_status: "confirmed"
+
+  - id: "aggregated_result"
+    preferred_term: "aggregált eredmény"
+    group: "privacy"
+
+    synonyms:
+      - "összesített eredmény"
+      - "csoportszintű eredmény"
+      - "aggregate result"
+
+    definition: >-
+      Több személy vagy rekord adatainak közös mutatóként, például
+      átlagként, arányként vagy elemszámként történő megjelenítése.
+
+    restriction: >-
+      Az eredményből egyéni válasz vagy egyéni teljesítmény nem lehet
+      közvetlenül visszafejthető.
+
+    documentation_status: "confirmed"
+
+
+  - id: "minimum_reporting_group_size"
+    preferred_term: "minimális közölhető csoportméret"
+    group: "privacy"
+
+    synonyms:
+      - "minimum csoportlétszám"
+      - "minimum elemszám"
+      - "minimum reporting group size"
+
+    definition: >-
+      Az aggregált eredmény megjelenítéséhez szükséges legkisebb
+      csoportonkénti elemszám.
+
+    default_minimum: 4
+
+    exception: >-
+      Konkrét oktató aggregált értékelése már egy választól megjeleníthető,
+      de az elemszámot minden esetben közölni kell.
+
+    restriction: >-
+      Nem azonos a következtető statisztikai elemzéshez előírt,
+      csoportonként legalább 20 megfigyeléssel.
+
+    documentation_status: "confirmed"
+
+
+  - id: "result_suppression"
+    preferred_term: "eredmény elrejtése"
+    group: "privacy"
+
+    synonyms:
+      - "kis elemszámú eredmény elnyomása"
+      - "adatközlés korlátozása"
+      - "result suppression"
+      - "cell suppression"
+
+    definition: >-
+      Egy eredmény megjelenítésének mellőzése, ha a közlés adatvédelmi
+      vagy módszertani szabályt sértene.
+
+    application_rule: >-
+      Az általános szabály szerint az 1–3 fős munkavállalói csoportok
+      eredménye nem közölhető.
+
+    documentation_status: "confirmed"
+
+
+  - id: "individual_record"
+    preferred_term: "egyéni rekord"
+    group: "privacy"
+
+    synonyms:
+      - "személyszintű rekord"
+      - "egyéni válasz"
+      - "individual record"
+      - "person-level data"
+
+    definition: >-
+      Egy meghatározott vagy meghatározható munkavállalóhoz tartozó
+      foglalkoztatási, felmérési, képzési vagy értékelési adat.
+
+    output_allowed: false
+
+    restriction: >-
+      Egyéni képzési, teljesítési vagy visszajelzési rekord, illetve
+      egyéni felmérési válasz nem jeleníthető meg.
+
+    documentation_status: "confirmed"
+
+  - id: "training_purpose"
+    preferred_term: "képzés célja"
+    group: "training"
+
+    synonyms:
+      - "képzési cél"
+      - "részvétel indoka"
+      - "training purpose"
+
+    definition: >-
+      A képzés elvégzésének szervezeti vagy munkavállalói indoka.
+
+    source_field: "TrainingPurpose"
+
+    value_definitions:
+      Mandatory: "Jogszabály, szabályzat vagy vállalati előírás alapján kötelező képzés."
+      Job Required: "A munkakör eredményes ellátásához szükséges képzés."
+      Employee Initiated: "A munkavállaló kezdeményezésére választott képzés."
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_completion_status"
+    preferred_term: "képzési teljesítési státusz"
+    group: "training"
+
+    synonyms:
+      - "képzés státusza"
+      - "teljesítési állapot"
+      - "completion status"
+
+    definition: >-
+      A képzési rekord befejezettségének állapota.
+
+    source_field: "CompletionStatus"
+
+    value_definitions:
+      Completed: "A képzés sikeresen befejeződött."
+      Incomplete: "A képzés elkezdődött, de nem fejeződött be."
+      Cancelled: "A képzést törölték; nem számít részvételnek."
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_result"
+    preferred_term: "képzési vizsgaeredmény"
+    group: "training"
+
+    synonyms:
+      - "vizsgaeredmény"
+      - "értékelési eredmény"
+      - "training result"
+      - "assessment result"
+
+    definition: >-
+      A vizsgával vagy értékeléssel záruló képzés teljesítési eredménye.
+
+    source_field: "TrainingResult"
+
+    value_definitions:
+      Passed: "A résztvevő teljesítette az előírt követelményt."
+      Failed: "A résztvevő nem teljesítette az előírt követelményt."
+
+    restriction: >-
+      Csak olyan képzésnél értelmezhető, amelyhez vizsga vagy formális
+      értékelés tartozik.
+
+    documentation_status: "confirmed"
+
+
+  - id: "feedback_submitted"
+    preferred_term: "képzési visszajelzés leadása"
+    group: "training"
+
+    synonyms:
+      - "értékelés kitöltése"
+      - "visszajelzés beküldése"
+      - "feedback submitted"
+
+    definition: >-
+      Azt jelzi, hogy a résztvevő leadott-e értékelést az adott képzésről.
+
+    source_field: "FeedbackSubmitted"
+
+    value_definitions:
+      "Yes": "A résztvevő visszajelzést adott."
+      "No": "A résztvevő nem adott visszajelzést."
+
+    restriction: >-
+      A visszajelzés leadása nem azonos a pozitív értékeléssel.
+
+    documentation_status: "confirmed"
+
+  - id: "rate"
+    preferred_term: "arány"
+    group: "statistics"
+
+    synonyms:
+      - "ráta"
+      - "rate"
+      - "percentage"
+
+    definition: >-
+      Egy meghatározott számláló és nevező hányadosa, amelyet a projekt
+      mutatói jellemzően százalékos formában jelenítenek meg.
+
+    restriction: >-
+      Az arány csak a számláló, a nevező és az időszak egyértelmű
+      meghatározásával értelmezhető.
+
+    documentation_status: "confirmed"
+
+
+  - id: "unique_employee"
+    preferred_term: "egyedi munkavállaló"
+    group: "workforce"
+
+    synonyms:
+      - "különálló munkavállaló"
+      - "unique employee"
+      - "distinct employee"
+
+    definition: >-
+      EmpID alapján egyszer számított munkavállaló, függetlenül attól,
+      hogy hány kapcsolódó felmérési vagy képzési rekordja van.
+
+    identification_field: "EmpID"
+
+    documentation_status: "confirmed"
+
+
+  - id: "organizational_group"
+    preferred_term: "szervezeti csoport"
+    group: "workforce"
+
+    synonyms:
+      - "szervezeti egység"
+      - "munkavállalói csoport"
+      - "organizational group"
+      - "employee segment"
+
+    definition: >-
+      A munkavállalók valamely használható szervezeti, demográfiai
+      vagy foglalkoztatási jellemző alapján képzett csoportja.
+
+    restriction: >-
+      Csak az adatállomány-katalógusban elemzésre engedélyezett mezők
+      használhatók csoportképzésre. Az adatvédelmi minimumlétszámot
+      minden esetben alkalmazni kell.
+
+    documentation_status: "confirmed"
+
+
+  - id: "sensitive_personal_attribute"
+    preferred_term: "érzékeny személyes jellemző"
+    group: "privacy"
+
+    synonyms:
+      - "érzékeny demográfiai adat"
+      - "sensitive personal attribute"
+      - "sensitive demographic data"
+
+    definition: >-
+      Olyan személyes jellemző, amelynek elemzése és közlése fokozott
+      adatvédelmi körültekintést igényel.
+
+    output_rule: >-
+      Csak engedélyezett célból, aggregáltan és a vonatkozó
+      minimumlétszám betartásával használható.
+
+    documentation_status: "confirmed"
+
+
+  - id: "full_time_equivalent"
+    preferred_term: "teljes munkaidős egyenérték"
+    group: "workforce"
+
+    synonyms:
+      - "FTE"
+      - "full-time equivalent"
+      - "teljes munkaidőre vetített létszám"
+
+    definition: >-
+      A munkaidő alapján teljes munkaidős állásokra átszámított
+      foglalkoztatási kapacitás.
+
+    available_in_data: false
+    related_metric: null
+
+    restriction: >-
+      A projekt létszámmutatói személyeket, nem FTE-kapacitást mérnek.
+      FTE az elérhető adatokból nem számítható.
+
+    documentation_status: "confirmed"

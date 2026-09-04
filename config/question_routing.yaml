@@ -1,0 +1,683 @@
+metadata:
+  file_name: "question_routing.yaml"
+  purpose: >-
+    A felhasználói kérdések hozzárendelése a megfelelő adatállományokhoz,
+    mezőkhöz, metrikákhoz és elemzési szabályokhoz.
+  official_cutoff_date: "2026-06-30"
+
+source_catalogs:
+  - "employee.yaml"
+  - "engagement.yaml"
+  - "training.yaml"
+  - "metrics.yaml"
+  - "business_rules.yaml"
+  - "analysis_rules.yaml"
+
+route_groups:
+  - id: "workforce"
+    label: "Létszám és foglalkoztatás"
+
+  - id: "turnover"
+    label: "Fluktuáció és kilépések"
+
+  - id: "engagement"
+    label: "Engagement és elégedettség"
+
+  - id: "training"
+    label: "Képzés és fejlesztés"
+
+  - id: "cross_dataset"
+    label: "Több adatállományt érintő kérdések"
+
+  - id: "clarification"
+    label: "Pontosítást igénylő kérdések"
+
+  - id: "out_of_scope"
+    label: "Nem megválaszolható kérdések"
+
+routing_rules:
+
+  - id: "headcount_questions"
+    label: "Létszámkérdések"
+    group: "workforce"
+
+    example_phrases:
+      - "Hány munkavállaló van?"
+      - "Mekkora volt a létszám?"
+      - "Nyitó- vagy zárólétszám"
+      - "Átlagos létszám"
+      - "Hányan dolgoztak az időszakban?"
+
+    source_datasets:
+      - "employee"
+
+    metric_selection:
+      current_or_date_specific_headcount: "ClosingHeadcount"
+      period_start_headcount: "OpeningHeadcount"
+      period_average_headcount: "AverageHeadcount"
+      explicitly_requested_simple_average: "OpeningClosingAverageHeadcount"
+
+    default_rule: >-
+      Időpont megadása nélküli aktuális létszámkérdésnél a
+      ClosingHeadcount mutatót és a 2026-06-30-i záródátumot kell használni.
+
+    average_rule: >-
+      Az „átlagos létszám” alapértelmezetten a napi létszámokból számított
+      AverageHeadcount mutatót jelenti.
+
+    clarification_rule: >-
+      Ha nem dönthető el, hogy időponti vagy időszaki átlagos létszámot
+      kér a felhasználó, pontosítást kell kérni.
+
+    documentation_status: "confirmed"
+
+  - id: "hire_and_exit_questions"
+    label: "Belépési és kilépési kérdések"
+    group: "workforce"
+
+    example_phrases:
+      - "Hányan léptek be?"
+      - "Hány új munkavállaló érkezett?"
+      - "Hányan távoztak?"
+      - "Hány kilépő volt?"
+      - "Mekkora volt a be- és kilépők száma?"
+
+    source_datasets:
+      - "employee"
+
+    metric_selection:
+      hires: "HireCount"
+      exits: "ExitCount"
+
+    date_fields:
+      hires: "StartDate"
+      exits: "ExitDate"
+
+    required_parameters:
+      - "vizsgált időszak"
+
+    period_rule: >-
+      A period_start és period_end határnapok is beletartoznak
+      a belépési vagy kilépési időszakba.
+
+    clarification_rule: >-
+      Ha a felhasználó nem ad meg időszakot, pontosítást kell kérni.
+
+    documentation_status: "confirmed"
+
+  - id: "turnover_questions"
+    label: "Fluktuációs kérdések"
+    group: "turnover"
+
+    example_phrases:
+      - "Mekkora a fluktuáció?"
+      - "Önkéntes kilépési arány"
+      - "Nem önkéntes fluktuáció"
+      - "Elbocsátás, elbocsájtás, kirúgás, leépítés vagy elküldés"
+      - "Nyugdíjazási arány"
+      - "Gördülő 3 vagy 12 havi fluktuáció"
+
+    source_datasets:
+      - "employee"
+
+    metric_selection:
+      unspecified_turnover: "TotalTurnoverRate"
+      voluntary: "VoluntaryTurnoverRate"
+      involuntary: "InvoluntaryTurnoverRate"
+      retirement: "RetirementExitRate"
+      rolling_3_month: "Rolling3MonthTurnoverRate"
+      rolling_12_month: "Rolling12MonthTurnoverRate"
+
+    default_rule: >-
+      Ha a felhasználó csak fluktuációt említ, a TotalTurnoverRate
+      mutatót kell használni.
+
+    clarification_rule: >-
+      Ha az időszak vagy a gördülő időablak nem egyértelmű,
+      pontosítást kell kérni.
+
+    unavailable_category_rule: >-
+      A „közös megegyezés” nem azonosítható az adatállományban,
+      ezért ilyen kérdésnél jelezni kell az adatkorlátot.
+
+    documentation_status: "confirmed"
+
+  - id: "engagement_score_questions"
+    label: "Engagement- és elégedettségi kérdések"
+    group: "engagement"
+
+    example_phrases:
+      - "Mekkora az engagement?"
+      - "Mennyire elkötelezettek a munkavállalók?"
+      - "Mennyire elégedettek?"
+      - "Milyen a munka-magánélet egyensúlya?"
+      - "Mekkora az összesített engagement-index?"
+
+    source_datasets:
+      - "engagement"
+      - "employee"
+
+    metric_selection:
+      engagement: "AverageEngagementIndex"
+      satisfaction: "AverageSatisfactionIndex"
+      work_life_balance: "AverageWorkLifeBalanceIndex"
+      combined_or_overall: "CompositeEngagementIndex"
+
+    raw_score_metrics:
+      engagement: "AverageEngagementScore"
+      satisfaction: "AverageSatisfactionScore"
+      work_life_balance: "AverageWorkLifeBalanceScore"
+
+    default_rule: >-
+      Alapértelmezetten a 0–100-as indexet kell használni.
+      Az 1–5-ös átlagpontszám csak kifejezett kérésre használható.
+
+    wave_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+
+    documentation_status: "confirmed"
+
+  - id: "engagement_top2_low2_questions"
+    label: "Kedvező és kedvezőtlen válaszarányok"
+    group: "engagement"
+
+    example_phrases:
+      - "Mekkora a Top2 arány?"
+      - "Hányan adtak 4-es vagy 5-ös választ?"
+      - "Mekkora a kedvező vagy pozitív válaszok aránya?"
+      - "Mekkora a Low2 arány?"
+      - "Hányan adtak 1-es vagy 2-es választ?"
+
+    metric_selection:
+      engagement_top2: "EngagementTop2BoxRate"
+      engagement_low2: "EngagementLow2BoxRate"
+      satisfaction_top2: "SatisfactionTop2BoxRate"
+      satisfaction_low2: "SatisfactionLow2BoxRate"
+      work_life_balance_top2: "WorkLifeBalanceTop2BoxRate"
+      work_life_balance_low2: "WorkLifeBalanceLow2BoxRate"
+
+    category_rules:
+      top2: "4-es vagy 5-ös válasz"
+      low2: "1-es vagy 2-es válasz"
+      neutral: "A 3-as válasz egyik kategóriába sem tartozik."
+
+    wave_rule: >-
+      Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+
+    clarification_rule: >-
+      Ha nem egyértelmű, hogy melyik kérdés vagy index Top2/Low2
+      arányát kéri a felhasználó, pontosítást kell kérni.
+
+    documentation_status: "confirmed"
+
+  - id: "survey_response_questions"
+    label: "Felmérési válaszadási kérdések"
+    group: "engagement"
+
+    example_phrases:
+      - "Mekkora volt a válaszadási arány?"
+      - "Hányan válaszoltak a felmérésre?"
+      - "Kik válaszoltak kisebb arányban?"
+      - "Reprezentatívak-e a válaszadók?"
+      - "Van-e nemválaszolási torzítás?"
+
+    source_datasets:
+      - "engagement"
+      - "employee"
+
+    metric_selection:
+      response_rate: "SurveyResponseRate"
+
+    analysis_rules:
+      - "nonresponse_bias_analysis"
+      - "survey_population_scope"
+      - "weighting_rule"
+
+    default_rule: >-
+      A válaszadási arány mellett a válaszadók és a jogosulti kör
+      összetételét is össze kell hasonlítani, ha a kérdés reprezentativitásra
+      vagy nemválaszolási torzításra vonatkozik.
+
+    weighting_rule: >-
+      A demóban súlyozott eredmény nem számítható.
+
+    privacy_rule: >-
+      Egyéni válaszadó vagy nem válaszadó személye nem jeleníthető meg.
+
+    documentation_status: "confirmed"
+
+  - id: "survey_wave_questions"
+    label: "Felmérési hullámok összehasonlítása és összevonása"
+    group: "engagement"
+
+    example_phrases:
+      - "Hogyan változott az engagement?"
+      - "Hasonlítsd össze a két hullámot."
+      - "Javult vagy romlott az elégedettség?"
+      - "Vond össze több hullám eredményét."
+      - "Mutasd a hullámok együttes eredményét."
+
+    change_metrics:
+      engagement: "EngagementIndexChange"
+      satisfaction: "SatisfactionIndexChange"
+      work_life_balance: "WorkLifeBalanceIndexChange"
+
+    pooled_metrics:
+      engagement: "PooledAverageEngagementIndex"
+      satisfaction: "PooledAverageSatisfactionIndex"
+      work_life_balance: "PooledAverageWorkLifeBalanceIndex"
+      combined: "PooledCompositeEngagementIndex"
+
+    comparison_rule: >-
+      Egy megadott hullám változását a közvetlenül megelőző hullámhoz
+      kell hasonlítani. A különbséget indexpontban kell közölni.
+
+    pooling_rule: >-
+      Hullámokat csak kifejezett összevonási kérésre szabad összevonni.
+      Az összevonás válaszrekord-alapú, ezért a nagyobb hullámok
+      nagyobb súlyt kapnak.
+
+    clarification_rule: >-
+      Ha nem egyértelmű, hogy a felhasználó összehasonlítást vagy
+      összevont eredményt kér, pontosítást kell kérni.
+
+    documentation_status: "confirmed"
+
+  - id: "training_participation_and_completion_questions"
+    label: "Képzési részvétel és teljesítés"
+    group: "training"
+
+    example_phrases:
+      - "Hányan vettek részt képzésen?"
+      - "Mekkora a képzési részvételi arány?"
+      - "Mekkora a teljesítési vagy félbehagyási arány?"
+      - "Hány képzést teljesítettek sikeresen?"
+      - "Mekkora a sikeres képzési lefedettség?"
+      - "Mekkora a törlési arány?"
+
+    metric_selection:
+      participant_count: "TrainingParticipantCount"
+      participation_rate: "TrainingParticipationRate"
+      completion_rate: "TrainingCompletionRate"
+      incomplete_rate: "TrainingIncompleteRate"
+      cancellation_rate: "TrainingCancellationRate"
+      successful_completion_count: "SuccessfulTrainingCompletionCount"
+      successful_employee_coverage: "SuccessfulTrainingCoverage"
+
+    distinction_rules:
+      - >-
+        A TrainingParticipantCount egyedi munkavállalókat, a
+        SuccessfulTrainingCompletionCount képzési rekordokat számol.
+      - >-
+        A TrainingCompletionRate a megkezdett képzésekre, a
+        SuccessfulTrainingCoverage az időszakban foglalkoztatott
+        munkavállalókra vetített mutató.
+      - >-
+        A Cancelled rekord nem számít képzési részvételnek.
+
+    clarification_rule: >-
+      Ha nem egyértelmű, hogy a felhasználó képzési rekordok vagy
+      egyedi munkavállalók számát kéri, pontosítást kell kérni.
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_assessment_and_feedback_questions"
+    label: "Vizsgaeredmény és visszajelzési arány"
+    group: "training"
+
+    example_phrases:
+      - "Mekkora a sikeres vizsgák aránya?"
+      - "Hányan mentek át a vizsgán?"
+      - "Mekkora a képzési visszajelzési arány?"
+      - "Hány résztvevő töltötte ki az értékelést?"
+
+    metric_selection:
+      assessment_pass_rate: "AssessmentPassRate"
+      feedback_response_rate: "TrainingFeedbackResponseRate"
+
+    assessment_rule: >-
+      A vizsgasikerességi arány nevezője csak a Passed vagy Failed
+      eredményű rekordokat tartalmazza. A Not Taken és Not Applicable
+      rekordok kimaradnak.
+
+    feedback_rule: >-
+      A visszajelzési arány nevezője a Completed vagy Incomplete
+      státuszú képzési rekordok száma. A Cancelled rekordok kimaradnak.
+
+    distinction_rule: >-
+      A Completed képzési státusz nem azonos a Passed vizsgaeredménnyel.
+
+    documentation_status: "confirmed"
+
+
+  - id: "training_evaluation_questions"
+    label: "Képzési értékelési kérdések"
+    group: "training"
+
+    example_phrases:
+      - "Mennyire elégedettek a képzéssel?"
+      - "Hogyan értékelték az oktatót?"
+      - "Mennyire releváns a képzés a munkakörhöz?"
+      - "Támogatta-e a személyes szakmai fejlődést?"
+      - "Mennyire használható a digitális tananyag?"
+
+    index_metrics:
+      overall_satisfaction: "AverageOverallSatisfactionIndex"
+      trainer_evaluation: "AverageTrainerEvaluationIndex"
+      job_relevance: "AverageJobRelevanceIndex"
+      personal_relevance: "AveragePersonalRelevanceIndex"
+      digital_content_usability: "AverageDigitalContentUsabilityIndex"
+
+    raw_score_metrics:
+      overall_satisfaction: "AverageOverallSatisfactionScore"
+      trainer_evaluation: "AverageTrainerEvaluationScore"
+      job_relevance: "AverageJobRelevanceScore"
+      personal_relevance: "AveragePersonalRelevanceScore"
+      digital_content_usability: "AverageDigitalContentUsabilityScore"
+
+    default_rule: >-
+      Alapértelmezetten a 0–100-as átlagindexet kell használni.
+      Az 1–5-ös átlagpontszám csak kifejezett kérésre használható.
+
+    sample_rule: >-
+      Az eredmény mellett közölni kell az érvényes értékelések
+      és az egyedi válaszadók számát.
+
+    documentation_status: "confirmed"
+
+  - id: "training_top2_low2_questions"
+    label: "Képzési Top2 és Low2 válaszarányok"
+    group: "training"
+
+    example_phrases:
+      - "Mekkora a képzési Top2 arány?"
+      - "Hányan értékelték kedvezően az oktatót?"
+      - "Mekkora a negatív vagy Low2 válaszok aránya?"
+      - "Hányan adtak 4-es vagy 5-ös értékelést?"
+
+    metric_selection:
+      overall_satisfaction:
+        top2: "OverallSatisfactionTop2BoxRate"
+        low2: "OverallSatisfactionLow2BoxRate"
+      trainer_evaluation:
+        top2: "TrainerEvaluationTop2BoxRate"
+        low2: "TrainerEvaluationLow2BoxRate"
+      job_relevance:
+        top2: "JobRelevanceTop2BoxRate"
+        low2: "JobRelevanceLow2BoxRate"
+      personal_relevance:
+        top2: "PersonalRelevanceTop2BoxRate"
+        low2: "PersonalRelevanceLow2BoxRate"
+      digital_content_usability:
+        top2: "DigitalContentUsabilityTop2BoxRate"
+        low2: "DigitalContentUsabilityLow2BoxRate"
+
+    category_rules:
+      top2: "4-es vagy 5-ös válasz"
+      low2: "1-es vagy 2-es válasz"
+      neutral: "A 3-as válasz egyik kategóriába sem tartozik."
+
+    clarification_rule: >-
+      Ha nem egyértelmű, hogy melyik képzési értékelési kérdés
+      Top2 vagy Low2 arányát kéri a felhasználó,
+      pontosítást kell kérni.
+      pontosítást kell kérni.
+
+    documentation_status: "confirmed"
+
+  - id: "training_cost_questions"
+    label: "Képzési költségkérdések"
+    group: "training"
+
+    example_phrases:
+      - "Mennyi az összes képzési költség?"
+      - "Mekkora a költség résztvevőnként?"
+      - "Mennyi jut egy sikeres teljesítésre?"
+      - "Mennyibe kerültek az egyes képzési programok?"
+      - "Mennyit költöttünk szolgáltatónként?"
+
+    metric_selection:
+      total_cost: "TotalTrainingCost"
+      cost_per_participant: "CostPerParticipant"
+      cost_per_successful_completion: "CostPerSuccessfulCompletion"
+      cost_by_program: "TrainingCostByProgram"
+      cost_by_provider: "TrainingCostByProvider"
+
+    currency: "USD"
+
+    cancellation_rule: >-
+      A Cancelled státuszú képzések költsége nem szerepel
+      a képzési költségmutatókban.
+
+    clarification_rule: >-
+      Ha a felhasználó nem ad meg időszakot vagy költségvetítési alapot,
+      pontosítást kell kérni.
+
+    documentation_status: "confirmed"
+
+  - id: "trainer_analysis_questions"
+    label: "Oktatói elemzések"
+    group: "training"
+
+    example_phrases:
+      - "Hogyan értékelték ezt az oktatót?"
+      - "Melyik oktató kapta a legjobb értékelést?"
+      - "Eltér-e az oktatók értékelése?"
+      - "A nők és a férfiak eltérően értékelték az oktatót?"
+      - "Van-e kapcsolat az oktató neme és az értékelés között?"
+
+    source_datasets:
+      - "training"
+      - "employee"
+
+    primary_metrics:
+      average_index: "AverageTrainerEvaluationIndex"
+      top2_rate: "TrainerEvaluationTop2BoxRate"
+      low2_rate: "TrainerEvaluationLow2BoxRate"
+
+    analysis_rules:
+      - "subgroup_and_interaction_analysis"
+      - "multiple_testing_correction"
+      - "minimum_sample_for_inference"
+
+    privacy_rule: >-
+      Konkrét oktató aggregált eredménye egy értékeléstől megjeleníthető,
+      és az elemszámot mindig közölni kell. Egyéni válaszadó nem azonosítható.
+
+    inference_rule: >-
+      Az oktatói eredmény közölhetősége nem jelent automatikusan megfelelő
+      elemszámot statisztikai következtetéshez.
+
+    causal_rule: >-
+      Az eltérésből az oktató teljesítményére vagy az eltérés okára
+      automatikusan nem lehet következtetni.
+
+    documentation_status: "confirmed"
+
+  - id: "cross_dataset_analysis_questions"
+    label: "Több adatállományt összekapcsoló elemzések"
+    group: "cross_dataset"
+
+    example_phrases:
+      - "Van-e kapcsolat a képzés és a teljesítmény között?"
+      - "Összefügg-e az engagement a kilépéssel?"
+      - "A képzésben részt vevők elégedettebbek-e?"
+      - "Eltér-e a fluktuáció engagement-szint szerint?"
+
+    source_datasets:
+      - "employee"
+      - "engagement"
+      - "training"
+
+    required_rules:
+      - "many_to_many_join_protection"
+      - "event_within_employment"
+      - "consistent_metric_filtering"
+      - "repeated_observations"
+      - "causal_inference_restriction"
+
+    aggregation_rule: >-
+      Az engagement- és training-adatokat a kérdésnek megfelelő
+      munkavállalói és időbeli szintre kell aggregálni, mielőtt
+      az employee adatokhoz kapcsoljuk őket.
+
+    clarification_rule: >-
+      Pontosítani kell a vizsgált eredményváltozót, az időszakot,
+      a megfigyelési egységet és az összehasonlítandó csoportokat,
+      ha ezek a kérdésből nem egyértelműek.
+
+    causal_rule: >-
+      A kimutatott kapcsolat megfigyeléses összefüggésként közölhető,
+      oksági hatásként nem.
+
+    documentation_status: "confirmed"
+
+  - id: "clarification_required"
+    label: "Pontosítást igénylő kérdések"
+    group: "clarification"
+
+    clarification_conditions:
+      - "A kérdés több, eltérő jelentésű metrikára is vonatkozhat."
+      - "Hiányzik a szükséges időszak, és nincs dokumentált alapértelmezés."
+      - "Nem egyértelmű a vizsgált szervezeti vagy munkavállalói csoport."
+      - "Nem dönthető el, hogy darabszámot vagy arányszámot kér a felhasználó."
+      - "Nem egyértelmű, hogy hullám-összehasonlítás vagy hullám-összevonás a cél."
+      - "A kért statisztikai általánosítás célja nem meghatározható."
+
+    rule: >-
+      Az AI egy rövid, célzott pontosító kérdést tegyen fel,
+      ha a különböző értelmezések eltérő számítást vagy eredményt adnának.
+
+    no_clarification_needed: >-
+      Nem kell pontosítást kérni, ha a kérdés egyértelmű, vagy az adott
+      metrikához dokumentált alapértelmezett szabály tartozik.
+
+    documentation_status: "confirmed"
+
+  - id: "out_of_scope_questions"
+    label: "Nem megválaszolható kérdések"
+    group: "out_of_scope"
+
+    conditions:
+      - "A szükséges adatállomány vagy mező nem áll rendelkezésre."
+      - "A kérdés 2026-06-30 utáni időszakra vonatkozik."
+      - "A kérdés egyéni munkavállalói adat közlését igényli."
+      - "A kérdés dokumentálatlan kategóriára, például közös megegyezésre vonatkozik."
+      - "A kérdés oksági bizonyosságot vár megfigyeléses adatokból."
+      - "A szükséges mező elemzésre nem használható."
+
+    response_rule: >-
+      Az AI röviden nevezze meg, mely adat vagy jogosultság hiányzik,
+      illetve mely szabály akadályozza a válaszadást.
+
+    alternative_rule: >-
+      Ha lehetséges, ajánljon fel az elérhető adatokból elkészíthető,
+      aggregált vagy leíró alternatív elemzést.
+
+    prohibited_behavior:
+      - "Hiányzó adat kitalálása."
+      - "Nem engedélyezett mező helyettesítése más mezővel."
+      - "Egyéni adat közlése aggregált adat helyett."
+      - "Oksági állítás megfogalmazása megfelelő bizonyíték nélkül."
+
+    documentation_status: "confirmed"
+
+  - id: "employee_profile_questions"
+    label: "Munkavállalói összetétel és teljesítmény"
+    group: "workforce"
+
+    example_phrases:
+      - "Milyen a munkavállalók összetétele?"
+      - "Hogyan oszlik meg a létszám nem vagy korcsoport szerint?"
+      - "Milyen a teljesítménypontszám?"
+      - "Eltér-e a teljesítmény a munkavállalói csoportok között?"
+
+    source_datasets:
+      - "employee"
+
+    field_selection:
+      performance: "Performance Score"
+      demographic_and_organizational_fields: >-
+        Az employee.yaml fájlban elemzésre engedélyezett mezők.
+
+    time_rule: >-
+      A munkavállalói és teljesítményjellemzők keresztmetszeti,
+      aktuális vagy utolsó ismert értékek. Történeti változásuk
+      nem vizsgálható.
+
+    prohibited_field: "Current Employee Rating"
+
+    privacy_rule: >-
+      Eredmény csak aggregáltan és legalább 4 fős munkavállalói
+      csoportokra jeleníthető meg.
+
+    documentation_status: "confirmed"
+
+  - id: "training_breakdown_questions"
+    label: "Képzések bontása és összehasonlítása"
+    group: "training"
+
+    example_phrases:
+      - "Melyik képzési kategória teljesített jobban?"
+      - "Hasonlítsd össze a képzési programokat."
+      - "Belső vagy külső képzések eredményesebbek?"
+      - "Eltérnek-e a képzési formák?"
+      - "Melyik szolgáltató eredménye a legjobb?"
+
+    source_datasets:
+      - "training"
+      - "employee"
+
+    grouping_fields:
+      - "TrainingCategory"
+      - "TrainingProgramName"
+      - "TrainingType"
+      - "TrainingPurpose"
+      - "DeliveryMode"
+      - "TrainingProvider"
+      - "Trainer"
+      - "TrainerGender"
+
+    hierarchy_rule: >-
+      A TrainingCategory magasabb szintű csoportosítás,
+      amelyen belül a TrainingProgramName értékek vizsgálhatók.
+
+    classification_rule: >-
+      A belső vagy külső besorolást a TrainingType alapján kell meghatározni.
+      Oktató nélküli online képzésnél nem a Trainer mező kitöltöttsége dönt.
+
+    prohibited_field: "LocationCode"
+
+    documentation_status: "confirmed"
+
+  - id: "statistical_analysis_questions"
+    label: "Statisztikai elemzési kérdések"
+    group: "cross_dataset"
+
+    example_phrases:
+      - "Statisztikailag szignifikáns-e a különbség?"
+      - "Van-e kapcsolat a két változó között?"
+      - "Mekkora a korreláció?"
+      - "Eltérően hat-e két munkavállalói csoportra?"
+      - "Mely háttértényezők mellett marad fenn az összefüggés?"
+
+    required_analysis_rules:
+      - "when_to_use_inferential_statistics"
+      - "uncertainty_and_generalization"
+      - "statistical_test_selection"
+      - "test_assumption_checks"
+      - "effect_size_reporting"
+      - "multiple_testing_correction"
+      - "minimum_sample_for_inference"
+      - "causal_inference_restriction"
+
+    clarification_rule: >-
+      Ha nem egyértelmű, hogy a felhasználó csak a megfigyelt sokaság
+      leírását vagy tágabb statisztikai általánosítást kér, ezt pontosítani kell.
+
+    output_rule: >-
+      A megfigyelt különbséget, a statisztikai szignifikanciát és
+      a gyakorlati jelentőséget külön kell közölni.
+
+    documentation_status: "confirmed"

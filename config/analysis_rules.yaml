@@ -1,0 +1,740 @@
+metadata:
+  file_name: "analysis_rules.yaml"
+  purpose: >-
+    Az AI által végzett statisztikai elemzések, összehasonlítások
+    és következtetések közös módszertani szabályai.
+  official_cutoff_date: "2026-06-30"
+
+source_catalogs:
+  - "employee.yaml"
+  - "engagement.yaml"
+  - "training.yaml"
+  - "metrics.yaml"
+  - "business_rules.yaml"
+
+rule_groups:
+  - id: "descriptive_statistics"
+    label: "Leíró statisztikák"
+
+  - id: "comparisons"
+    label: "Csoport- és időbeli összehasonlítások"
+
+  - id: "statistical_testing"
+    label: "Statisztikai próbák"
+
+  - id: "missing_data"
+    label: "Hiányzó adatok és elemszámok"
+
+  - id: "interpretation"
+    label: "Értelmezés és következtetés"
+
+  - id: "reporting"
+    label: "Eredmények közlése"
+
+analysis_rules:
+
+  - id: "default_descriptive_statistics"
+    label: "Alapértelmezett leíró statisztikák"
+    group: "descriptive_statistics"
+
+    rules:
+      numeric_variables:
+        default_outputs:
+          - "érvényes elemszám"
+          - "átlag"
+          - "medián"
+          - "szórás"
+          - "minimum és maximum"
+
+      categorical_variables:
+        default_outputs:
+          - "gyakoriság"
+          - "százalékos megoszlás"
+          - "érvényes elemszám"
+
+      survey_scores:
+        default_output: "0–100-as átlagindex"
+        additional_outputs:
+          - "érvényes válaszok száma"
+          - "Top2 és Low2 arány, ha a kérdéshez releváns"
+
+    raw_score_rule: >-
+      Az 1–5-ös átlagpontszám csak a felhasználó kifejezett kérésére
+      használható elemzéshez vagy összehasonlításhoz.
+
+    documentation_status: "confirmed"
+
+
+  - id: "weighting_rule"
+    label: "Súlyozás kezelése"
+    group: "descriptive_statistics"
+
+    default_rule: >-
+      Az elemzéseket súlyozatlanul kell elvégezni, mert az adatállományok
+      nem tartalmaznak dokumentált elemzési súlyváltozót.
+
+    survey_wave_rule: >-
+      Egy felmérési hullámon belül minden érvényes válaszrekord azonos
+      súlyt kap.
+
+    pooled_wave_rule: >-
+      Több hullám összevonásakor válaszrekord-alapú súlyozást kell használni:
+      minden válaszrekord azonos súlyú. Emiatt a nagyobb válaszadószámú
+      hullámok nagyobb hatással vannak az összevont eredményre.
+
+    restriction: >-
+      Utólagos demográfiai vagy szervezeti súlyozás külön dokumentált
+      módszer nélkül nem alkalmazható.
+
+    documentation_status: "confirmed"
+
+  - id: "difference_reporting"
+    label: "Különbségek és változások közlése"
+    group: "comparisons"
+
+    rules:
+      index_difference: >-
+        A 0–100-as indexek változását indexpontban kell megadni.
+      percentage_difference: >-
+        Két százalékos arány különbségét százalékpontban kell megadni.
+      relative_change: >-
+        Relatív százalékos változás csak a felhasználó kifejezett
+        kérésére számítható.
+
+    calculation_rule: >-
+      A későbbi vagy vizsgált értékből kell kivonni a korábbi
+      vagy összehasonlítási értéket.
+
+    output_requirement: >-
+      Mindkét alapértéket, a különbséget és az alkalmazott
+      mértékegységet is közölni kell.
+
+    documentation_status: "confirmed"
+
+  - id: "comparison_consistency"
+    label: "Összehasonlítható csoportok és időszakok"
+    group: "comparisons"
+
+    rule: >-
+      Csoportok vagy időszakok csak azonos metrika, képlet,
+      szűrési szabály és adatérvényességi feltétel mellett hasonlíthatók össze.
+
+    required_checks:
+      - "azonos időszakhossz vagy annak egyértelmű jelzése"
+      - "azonos számláló- és neveződefiníció"
+      - "azonos szervezeti és munkavállalói szűrés"
+      - "mindkét csoport megfelelő elemszáma"
+      - "összehasonlítható adatlefedettség"
+
+    composition_warning: >-
+      Az eltérő munkavállalói, program- vagy válaszadói összetétel
+      befolyásolhatja a megfigyelt különbséget.
+
+    response_rule: >-
+      Nem összehasonlítható csoportok vagy időszakok esetén az AI
+      jelezze a korlátozást, és ne állítson közvetlen teljesítménykülönbséget.
+
+    documentation_status: "confirmed"
+
+  - id: "survey_wave_comparison"
+    label: "Felmérési hullámok összehasonlítása"
+    group: "comparisons"
+
+    default_comparison: >-
+      Ha a felhasználó egy hullám változását kérdezi, azt a közvetlenül
+      megelőző elérhető hullámhoz kell hasonlítani.
+
+    calculation_rule: >-
+      A hullámok aggregált indexeit kell összehasonlítani.
+      A változás a későbbi index és a korábbi index különbsége indexpontban.
+
+    respondent_rule: >-
+      A hullámok válaszadói köre eltérhet. Az összehasonlítás nem ugyanazon
+      munkavállalók egyéni változását, hanem két aggregált hullámeredmény
+      különbségét méri.
+
+    required_outputs:
+      - "mindkét hullám azonosítója"
+      - "mindkét hullám indexértéke"
+      - "mindkét hullám érvényes válaszadói elemszáma"
+      - "az indexpontkülönbség"
+
+    documentation_status: "confirmed"
+
+
+  - id: "trend_interpretation"
+    label: "Idősoros trendek értelmezése"
+    group: "comparisons"
+
+    rule: >-
+      Két időpont különbsége változásként, nem trendként értelmezhető.
+      Trend megállapításához legalább három egymást követő, összehasonlítható
+      időpont vagy időszak szükséges.
+
+    required_checks:
+      - "azonos metrikadefiníció"
+      - "azonos időbeli egység"
+      - "azonos vagy összehasonlítható csoport"
+      - "kiugró értékek és adathiányok ellenőrzése"
+
+    rolling_metric_warning: >-
+      A gördülő időszakok részben átfedik egymást, ezért az egymást követő
+      értékek nem tekinthetők egymástól független megfigyeléseknek.
+
+    interpretation_rule: >-
+      Rövid vagy ingadozó idősor alapján tartós növekedés vagy csökkenés
+      nem állítható biztosan.
+
+    documentation_status: "confirmed"
+
+  - id: "statistical_significance"
+    label: "Statisztikai szignifikancia"
+    group: "statistical_testing"
+
+    default_settings:
+      significance_level: 0.05
+      confidence_level: 0.95
+      test_direction: "two_sided"
+
+    rule: >-
+      Statisztikailag szignifikáns különbség csak akkor jelezhető, ha
+      a következtető statisztika alkalmazása indokolt, a próba feltételei
+      teljesülnek, és a korrigált p-érték – vagy egyetlen vizsgálatnál
+      a p-érték – kisebb 0,05-nél.
+
+    required_outputs:
+      - "alkalmazott statisztikai próba"
+      - "p-érték"
+      - "hatásméret"
+      - "csoportonkénti elemszám"
+      - "95%-os konfidenciaintervallum, ha számítható"
+
+    interpretation_rule: >-
+      A statisztikai szignifikancia nem azonos a különbség gyakorlati
+      vagy üzleti jelentőségével.
+
+    documentation_status: "confirmed"
+
+  - id: "statistical_test_selection"
+    label: "Statisztikai próba kiválasztása"
+    group: "statistical_testing"
+
+    test_mapping:
+      two_independent_numeric_groups:
+        default_test: "Welch-féle kétmintás t-próba"
+        reason: "Nem feltételezi a két csoport azonos varianciáját."
+
+      three_or_more_numeric_groups:
+        default_test: "Welch-féle varianciaanalízis"
+        follow_up: "Games–Howell páronkénti összehasonlítás"
+
+      two_proportions:
+        default_test: "kétmintás aránypróba"
+        small_expected_counts: "Fisher-féle egzakt próba"
+
+      categorical_association:
+        default_test: "khi-négyzet-próba"
+        small_expected_counts: "Fisher-féle egzakt próba, ha alkalmazható"
+
+      ordinal_or_strongly_non_normal_data:
+        two_groups: "Mann–Whitney-próba"
+        three_or_more_groups: "Kruskal–Wallis-próba"
+
+    selection_rule: >-
+      A próba kiválasztásakor figyelembe kell venni a változók mérési
+      szintjét, a csoportok számát, függetlenségét, elemszámát és eloszlását.
+
+    documentation_status: "confirmed"
+
+  - id: "test_assumption_checks"
+    label: "Statisztikai feltételek ellenőrzése"
+    group: "statistical_testing"
+
+    required_checks:
+      - "A megfigyelések függetlensége."
+      - "A változó mérési szintje."
+      - "A csoportok elemszáma."
+      - "Kiugró értékek és erősen ferde eloszlás."
+      - "Kategóriás próbáknál a várható cellagyakoriságok."
+
+    normality_rule: >-
+      Nagy mintánál a normalitáspróba önmagában nem dönthet a módszerről.
+      Az eloszlás alakját, a kiugró értékeket és a választott próba
+      robusztusságát együtt kell figyelembe venni.
+
+    fallback_rule: >-
+      Ha a választott próba feltételei nem teljesülnek, megfelelő robusztus
+      vagy nemparaméteres próbát kell használni, és ezt jelezni kell.
+
+    independence_warning: >-
+      Ugyanazon munkavállaló több válasza vagy képzési rekordja nem tekinthető
+      automatikusan egymástól független megfigyelésnek.
+
+    documentation_status: "confirmed"
+
+  - id: "effect_size_reporting"
+    label: "Hatásméret közlése"
+    group: "statistical_testing"
+
+    rule: >-
+      Statisztikai összehasonlításnál a p-érték mellett megfelelő
+      hatásméretet is közölni kell.
+
+    effect_size_mapping:
+      two_numeric_groups: "Hedges-féle g"
+      three_or_more_numeric_groups: "omega-négyzet"
+      mann_whitney_test: "rang-biszeriális korreláció"
+      kruskal_wallis_test: "epsilon-négyzet"
+      categorical_association: "Cramér-féle V"
+      proportion_comparison:
+        - "százalékpontkülönbség"
+        - "relatív kockázat, ha értelmezhető"
+
+    interpretation_rule: >-
+      A hatásméretet az üzleti és módszertani környezettel együtt kell
+      értelmezni. Általános küszöbérték alapján önmagában nem minősíthető
+      fontosnak vagy jelentéktelennek.
+
+    documentation_status: "confirmed"
+
+  - id: "multiple_testing_correction"
+    label: "Többszörös statisztikai tesztelés"
+    group: "statistical_testing"
+
+    rule: >-
+      Több csoport, metrika vagy páronkénti összehasonlítás egyidejű
+      vizsgálatakor korrigálni kell a többszörös tesztelésből eredő
+      megnövekedett téves pozitív kockázatot.
+
+    correction_methods:
+      planned_comparisons: "Holm-korrekció"
+      exploratory_many_tests: "Benjamini–Hochberg FDR-korrekció"
+      welch_anova_follow_up: "Games–Howell eljárás korrigált p-értékei"
+
+    output_requirement: >-
+      Közölni kell az alkalmazott korrekciót és a korrigált p-értékeket.
+
+    restriction: >-
+      Korrigálatlan páronkénti p-értékek alapján nem állítható
+      statisztikailag szignifikáns különbség több összehasonlítás esetén.
+
+    documentation_status: "confirmed"
+
+  - id: "minimum_sample_for_inference"
+    label: "Minimális elemszám statisztikai következtetéshez"
+    group: "statistical_testing"
+
+    default_minimum_per_group: 20
+
+    rule: >-
+      Átlagok vagy indexek csoportos statisztikai összehasonlításához
+      alapértelmezetten csoportonként legalább 20 érvényes, független
+      megfigyelés szükséges.
+
+    categorical_rule: >-
+      Arányok és kategóriás változók vizsgálatánál a választott próba
+      várható cellagyakorisági feltételeit is ellenőrizni kell.
+
+    small_sample_handling: >-
+      A küszöb alatti csoport eredménye – az adatvédelmi szabályok betartásával –
+      leíró módon bemutatható, de erős statisztikai következtetés nem tehető.
+
+    trainer_exception: >-
+      Az oktatói minimum 1 értékelés csak aggregált eredményközlési kivétel,
+      nem statisztikai következtetési küszöb.
+
+    interpretation_rule: >-
+      Nem szignifikáns eredmény kis mintánál nem bizonyítja, hogy nincs különbség.
+
+    documentation_status: "confirmed"
+
+  - id: "analytical_missing_data_handling"
+    label: "Hiányzó adatok elemzési kezelése"
+    group: "missing_data"
+
+    default_method: "available_case_analysis"
+
+    rule: >-
+      Egy mutató számításakor csak az adott mutatóhoz szükséges,
+      érvényes értékkel rendelkező rekordokat kell felhasználni.
+
+    multivariable_rule: >-
+      Több változó együttes elemzésénél csak azok a rekordok használhatók,
+      amelyek minden szükséges változóhoz érvényes értékkel rendelkeznek,
+      kivéve, ha más dokumentált módszer kerül alkalmazásra.
+
+    prohibited_methods:
+      - "Hiányzó érték automatikus nullára állítása."
+      - "Átlaggal vagy mediánnal történő automatikus pótlás."
+      - "Hiányzó válasz kedvezőtlen válaszként kezelése."
+
+    required_outputs:
+      - "felhasznált érvényes elemszám"
+      - "kizárt hiányzó rekordok száma, ha releváns"
+      - "eltérő hiányzási arány jelzése az összehasonlított csoportok között"
+
+    documentation_status: "confirmed"
+
+  - id: "repeated_observations"
+    label: "Ismételt megfigyelések kezelése"
+    group: "statistical_testing"
+
+    rule: >-
+      Az elemzés megfigyelési egységét minden esetben meg kell határozni:
+      munkavállaló, felmérési válasz vagy képzési rekord.
+
+    engagement_rule: >-
+      Több hullám összevonásakor ugyanaz a munkavállaló több válaszrekorddal
+      szerepelhet. Ez a leíró összevont mutatóknál megengedett, de a rekordok
+      statisztikai tesztelésnél nem tekinthetők automatikusan függetlennek.
+
+    training_rule: >-
+      Ugyanaz a munkavállaló több képzési rekorddal szerepelhet.
+      Munkavállalói szintű összehasonlításhoz először munkavállalói szintre
+      kell aggregálni, vagy ismételt megfigyeléseket kezelő módszer szükséges.
+
+    fallback_rule: >-
+      Ha klaszterezett vagy ismételt méréses módszer nem alkalmazható,
+      csak leíró eredmény közölhető, az ismételt megfigyelések korlátjának
+      egyértelmű jelzésével.
+
+    documentation_status: "confirmed"
+
+  - id: "correlation_analysis"
+    label: "Korrelációs elemzés"
+    group: "statistical_testing"
+
+    method_selection:
+      continuous_linear_variables: "Pearson-korreláció"
+      ordinal_or_non_normal_variables: "Spearman-féle rangkorreláció"
+
+    required_checks:
+      - "legalább 20 érvényes megfigyeléspár"
+      - "kiugró értékek"
+      - "kapcsolat alakja"
+      - "ismételt megfigyelések jelenléte"
+
+    required_outputs:
+      - "korrelációs együttható"
+      - "p-érték"
+      - "95%-os konfidenciaintervallum, ha számítható"
+      - "érvényes megfigyeléspárok száma"
+
+    interpretation_rule: >-
+      A kapcsolat irányát és erősségét kell leírni. A korreláció
+      nem bizonyít oksági kapcsolatot.
+
+    restriction: >-
+      Nemlineáris vagy erősen kiugró értékek által vezérelt kapcsolat
+      egyszerű korrelációs együtthatóval nem értelmezhető megfelelően.
+
+    documentation_status: "confirmed"
+
+  - id: "causal_inference_restriction"
+    label: "Oksági következtetések korlátozása"
+    group: "interpretation"
+
+    rule: >-
+      A rendelkezésre álló megfigyeléses HR-adatokból önmagukban
+      nem állapítható meg oksági kapcsolat.
+
+    prohibited_phrasing:
+      - "az egyik változó okozta a másikat"
+      - "a képzés javította a teljesítményt"
+      - "az alacsony engagement vezetett a kilépéshez"
+      - "az oktató neme határozta meg az értékelést"
+
+    allowed_phrasing:
+      - "összefüggés figyelhető meg"
+      - "a csoportok eredménye eltér"
+      - "a változók együtt járnak"
+      - "az eredmény további vizsgálatot indokolhat"
+
+    explanation: >-
+      A megfigyelt kapcsolatot kiválasztási hatás, eltérő csoportösszetétel,
+      időbeli különbség, nem mért háttértényező vagy fordított kapcsolat
+      is magyarázhatja.
+
+    documentation_status: "confirmed"
+
+  - id: "practical_significance"
+    label: "Gyakorlati jelentőség értelmezése"
+    group: "interpretation"
+
+    rule: >-
+      A statisztikailag szignifikáns eredmény gyakorlati vagy üzleti
+      jelentőségét külön kell értékelni.
+
+    required_considerations:
+      - "különbség tényleges nagysága"
+      - "hatásméret"
+      - "konfidenciaintervallum"
+      - "minta nagysága"
+      - "üzleti és HR-környezet"
+
+    interpretation_rule: >-
+      Nagy mintánál nagyon kis eltérés is lehet statisztikailag szignifikáns,
+      míg kis mintánál érdemi eltérés is maradhat nem szignifikáns.
+
+    prohibited_conclusion: >-
+      Pusztán a p-érték alapján az eredmény nem minősíthető fontosnak,
+      jelentéktelennek vagy döntést megalapozónak.
+
+    documentation_status: "confirmed"
+
+
+  - id: "uncertainty_and_generalization"
+    label: "Bizonytalanság és általánosíthatóság"
+    group: "interpretation"
+
+    rule: >-
+      Külön kell választani a megfigyelt adatokban ténylegesen fennálló
+      különbséget, a véletlen bizonytalanságot és az eredmények
+      más időszakra vagy nagyobb elméleti sokaságra való általánosítását.
+
+    sample_vs_population: >-
+      Ha az adatállomány a vizsgált időszak és szervezeti kör teljes
+      megfigyelt sokaságát tartalmazza, a leíró eredmények erre a sokaságra
+      pontosan vonatkoznak, ezért igazolásukhoz nincs szükség p-értékre.
+
+    inference_rule: >-
+      P-érték és konfidenciaintervallum akkor használható, ha az eredményt
+      egy nagyobb, hipotetikus sokaságra, más időszakra vagy jövőbeli
+      helyzetre kívánjuk általánosítani.
+
+    output_rule: >-
+      Az AI mindig jelezze, hogy az eredmény leíró sokasági megállapítás,
+      vagy statisztikai következtetés egy tágabb elméleti sokaságra.
+
+    documentation_status: "confirmed"
+
+  - id: "nonresponse_bias_analysis"
+    label: "Nemválaszolási torzítás vizsgálata"
+    group: "missing_data"
+
+    rule: >-
+      A magas válaszadási arány önmagában nem garantálja, hogy a válaszadók
+      megfelelően reprezentálják a teljes jogosulti munkavállalói kört.
+
+    required_checks:
+      - "válaszadási arány munkavállalói csoportok szerint"
+      - "válaszadók és nem válaszadók összetételének összehasonlítása"
+      - "különösen alul- vagy felülreprezentált csoportok azonosítása"
+
+    available_attributes: >-
+      A vizsgálathoz az employee katalógusban elemzésre engedélyezett
+      demográfiai, szervezeti és munkaköri jellemzők használhatók.
+
+    interpretation_rule: >-
+      Kimutatható, ha például egy etnikai, nemi vagy szervezeti csoport
+      kisebb arányban válaszolt. A nem megfigyelt jellemzők szerinti
+      torzítás azonban nem zárható ki.
+
+    weighting_rule: >-
+      Eltérő válaszadási arány esetén sem alkalmazható automatikus súlyozás
+      külön dokumentált súlyozási módszer nélkül.
+
+    documentation_status: "confirmed"
+
+  - id: "survey_population_scope"
+    label: "Felmérési eredmények vonatkozási köre"
+    group: "interpretation"
+
+    rule: >-
+      Az engagement-adatállomány az egyes hullámok jogosulti
+      munkavállalóinak körülbelül 70–80%-át tartalmazza.
+      A kiszámított eredmények közvetlenül a válaszadókra vonatkoznak,
+      nem automatikusan a teljes jogosulti munkavállalói körre.
+
+    coverage_interpretation: >-
+      A magas válaszadási arány csökkentheti a bizonytalanságot,
+      de nem zárja ki a szisztematikus nemválaszolási torzítást.
+
+    required_analysis: >-
+      Ellenőrizni kell, hogy a válaszadási arány és a válaszadók
+      összetétele eltér-e a jogosulti kör egyes, elemzésre engedélyezett
+      munkavállalói csoportjai között.
+
+    current_weighting_rule: >-
+      A demóban súlyozás nem alkalmazható. A felmérési eredmények
+      súlyozatlan válaszadói eredményként jelennek meg.
+
+    future_extension: >-
+      Hullámspecifikus súlyozás később külön módszertani szabállyal
+      és súlyváltozókkal bevezethető.
+
+    documentation_status: "confirmed"
+
+  - id: "significance_language"
+    label: "A jelentős és szignifikáns kifejezések használata"
+    group: "reporting"
+
+    rule: >-
+      A „statisztikailag szignifikáns” kifejezés csak megfelelő
+      statisztikai próba és meghatározott általánosítási cél esetén használható.
+
+    terminology:
+      statistically_significant: >-
+        A választott statisztikai modell szerint a megfigyelt eredmény
+        nehezen magyarázható pusztán véletlen mintavételi ingadozással.
+      practically_meaningful: >-
+        A különbség nagysága HR- vagy üzleti szempontból érdemi lehet.
+      observed_difference: >-
+        A vizsgált adatokban ténylegesen fennálló leíró különbség.
+
+    prohibited_usage: >-
+      A „szignifikáns” szó nem használható a „nagy”, „fontos” vagy
+      „érdemi” kifejezések általános szinonimájaként.
+
+    output_rule: >-
+      Az AI egyértelműen különböztesse meg a megfigyelt különbséget,
+      a statisztikai szignifikanciát és a gyakorlati jelentőséget.
+
+    documentation_status: "confirmed"
+
+  - id: "when_to_use_inferential_statistics"
+    label: "Következtető statisztika alkalmazása"
+    group: "statistical_testing"
+
+    default_rule: >-
+      Az AI alapértelmezetten leíró statisztikát használ. Statisztikai
+      próbát nem végez automatikusan minden megfigyelt különbségre.
+
+    use_inferential_statistics_when:
+      - "A felhasználó szignifikanciát vagy konfidenciaintervallumot kér."
+      - "Az eredményt nagyobb elméleti sokaságra kívánjuk általánosítani."
+      - "Más időszakokra vagy jövőbeli helyzetekre vonatkozó következtetés a cél."
+
+    descriptive_only_when: >-
+      Ha az adat a meghatározott időszak és szervezeti kör teljes sokaságát
+      tartalmazza, a megfigyelt különbséget leíró eredményként kell közölni.
+
+    survey_warning: >-
+      A statisztikai próba a véletlen bizonytalanságot vizsgálhatja,
+      de a nemválaszolási vagy kiválasztási torzítást nem szünteti meg.
+
+    documentation_status: "confirmed"
+
+  - id: "analysis_output_structure"
+    label: "Elemzési eredmény kötelező szerkezete"
+    group: "reporting"
+
+    required_sections:
+      result: "A legfontosabb megfigyelt vagy számított eredmény."
+      scope: "Vizsgált időszak, felmérési hullám és munkavállalói kör."
+      sample_size: "Érvényes rekordok és egyedi személyek száma."
+      method: "Alkalmazott metrika és statisztikai módszer."
+      uncertainty: "Konfidenciaintervallum és p-érték, ha indokolt."
+      limitation: "Az eredmény legfontosabb értelmezési korlátja."
+
+    reporting_order: >-
+      Először a közvetlen üzleti választ kell megadni, ezt követhetik
+      a módszertani részletek és korlátozások.
+
+    language_rule: >-
+      Az eredményt közérthetően kell megfogalmazni, de a megfigyelt adatot,
+      a statisztikai következtetést és a feltételezett magyarázatot
+      egyértelműen el kell különíteni.
+
+    documentation_status: "confirmed"
+
+  - id: "outlier_handling"
+    label: "Kiugró értékek kezelése"
+    group: "descriptive_statistics"
+
+    rule: >-
+      A kiugró értékeket elemzés előtt ellenőrizni kell, de pusztán
+      szélsőséges voltuk miatt nem törölhetők automatikusan.
+
+    validation_rule: >-
+      El kell különíteni az adatbeviteli vagy adatminőségi hibát
+      a ritka, de érvényes megfigyeléstől.
+
+    reporting_rule: >-
+      Ha a kiugró értékek érdemben befolyásolják az átlagot,
+      az átlag mellett mediánt és megfelelő eloszlási mutatókat is közölni kell.
+
+    exclusion_rule: >-
+      Kiugró érték csak dokumentált adatminőségi ok alapján zárható ki.
+      A kizárt rekordok számát és a kizárás szabályát közölni kell.
+
+    documentation_status: "confirmed"
+
+  - id: "subgroup_and_interaction_analysis"
+    label: "Alcsoportok és interakciók vizsgálata"
+    group: "statistical_testing"
+
+    rule: >-
+      Ha egy kapcsolat csoportonként eltérhet, az összesített eredmény
+      mellett alcsoportos és interakciós elemzés is végezhető.
+
+    example: >-
+      Oktatói értékelésnél külön vizsgálható, hogy ugyanazon oktató
+      értékelése eltér-e a női és férfi résztvevők között.
+
+    required_checks:
+      - "alcsoportonkénti elemszám"
+      - "adatvédelmi minimum"
+      - "összehasonlítható képzési és résztvevői összetétel"
+      - "többszörös tesztelés korrekciója"
+
+    inference_rule: >-
+      Formális interakció csak megfelelő regressziós vagy varianciaanalízises
+      modell alapján állítható. Külön alcsoportok eltérő p-értéke önmagában
+      nem bizonyít interakciót.
+
+    causal_warning: >-
+      Az interakciós kapcsolat sem bizonyít oksági hatást.
+
+    documentation_status: "confirmed"
+
+  - id: "confounding_and_adjustment"
+    label: "Háttértényezők és korrigált elemzés"
+    group: "interpretation"
+
+    rule: >-
+      A csoportok közötti nyers különbséget befolyásolhatja az eltérő
+      demográfiai, szervezeti, munkaköri vagy képzési összetétel.
+
+    analysis_sequence:
+      - "Elsőként a korrigálatlan, leíró eredményt kell bemutatni."
+      - "Ezután vizsgálhatók a rendelkezésre álló háttértényezők."
+      - "Korrigált eredmény csak dokumentált statisztikai modellből közölhető."
+
+    model_requirement: >-
+      Közölni kell a modellbe bevont változókat, a megfigyelési egységet,
+      az elemszámotámot és a modell legfontosabb feltételezéseit.
+
+    limitation: >-
+      A rendelkezésre álló változók szerinti korrekció nem zárja ki
+      a nem mért háttértényezők hatását.
+
+    causal_warning: >-
+      A korrigált statisztikai kapcsolat sem bizonyít oksági kapcsolatot.
+
+    documentation_status: "confirmed"
+
+  - id: "finite_population_correction"
+    label: "Nagy mintavételi arány kezelése"
+    group: "statistical_testing"
+
+    rule: >-
+      A jogosulti kör 70–80%-os lefedettsége önmagában nem teszi
+      automatikusan alkalmazhatóvá a véges sokasági korrekciót.
+
+    requirement: >-
+      Véges sokasági korrekció csak dokumentált valószínűségi mintavétel
+      vagy megfelelően igazolható véletlenszerű válaszadási mechanizmus
+      esetén alkalmazható.
+
+    current_project_rule: >-
+      Az engagement-felméréseknél a válaszadás nem dokumentált
+      valószínűségi mintavétel, ezért véges sokasági korrekciót
+      alapértelmezetten nem alkalmazunk.
+
+    interpretation_rule: >-
+      A magas lefedettséget közölni kell, de mellette vizsgálni kell
+      a válaszadók és nem válaszadók összetételének eltérését.
+
+    documentation_status: "confirmed"
+
