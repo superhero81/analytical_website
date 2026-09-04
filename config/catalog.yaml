@@ -21,17 +21,17 @@ datasets:
   - id: "employee"
     name: "Munkavállalói törzsadatok"
     file: "employee_data_clean.csv"
-    detail_catalog: "datasets/employee.yaml"
+    detail_catalog: "employee.yaml"
 
   - id: "engagement"
     name: "Féléves engagement-felmérések"
     file: "employee_engagement_survey_data_clean.csv"
-    detail_catalog: "datasets/engagement.yaml"
+    detail_catalog: "engagement.yaml"
 
   - id: "training"
     name: "Képzési, teljesítési és képzési visszajelzési adatok"
     file: "training_and_development_data_clean.csv"
-    detail_catalog: "datasets/training.yaml"
+    detail_catalog: "training.yaml"
 
 relationships:
   - id: "employee_to_engagement"

@@ -174,7 +174,154 @@ for filename, section_name in identifier_groups.items():
             + ", ".join(duplicates)
         )
 
+print("\n" + "=" * 60)
+print("METRIKAHIVATKOZÁSOK ELLENŐRZÉSE")
+print("=" * 60)
 
+
+def collect_strings(value):
+    if isinstance(value, str):
+        return [value]
+
+    if isinstance(value, list):
+        result = []
+        for item in value:
+            result.extend(collect_strings(item))
+        return result
+
+    if isinstance(value, dict):
+        result = []
+        for item in value.values():
+            result.extend(collect_strings(item))
+        return result
+
+    return []
+
+
+metric_reference_keys = {
+    "metric_selection",
+    "raw_score_metrics",
+    "change_metrics",
+    "pooled_metrics",
+    "index_metrics",
+    "primary_metrics",
+}
+
+known_metrics = set(
+    get_names(
+        loaded_catalogs
+        .get("metrics.yaml", {})
+        .get("metrics", [])
+    )
+)
+
+routing_rules = (
+    loaded_catalogs
+    .get("question_routing.yaml", {})
+    .get("routing_rules", [])
+)
+
+referenced_metrics = set()
+
+for rule in routing_rules:
+    if not isinstance(rule, dict):
+        continue
+
+    for key in metric_reference_keys:
+        if key in rule:
+            referenced_metrics.update(
+                collect_strings(rule[key])
+            )
+
+unknown_metrics = sorted(
+    referenced_metrics - known_metrics
+)
+
+print(f"Hivatkozott metrikák: {len(referenced_metrics)}")
+print(f"Ismert metrikák: {len(known_metrics)}")
+
+if unknown_metrics:
+    errors.append(
+        "A kérdésirányítás ismeretlen metrikákra hivatkozik: "
+        + ", ".join(unknown_metrics)
+    )
+
+
+print("\n" + "=" * 60)
+print("ADATKÉSZLET-HIVATKOZÁSOK ELLENŐRZÉSE")
+print("=" * 60)
+
+main_catalog = loaded_catalogs.get("catalog.yaml", {})
+dataset_entries = main_catalog.get("datasets", [])
+
+known_datasets = {
+    item["id"]
+    for item in dataset_entries
+    if isinstance(item, dict) and item.get("id")
+}
+
+referenced_datasets = set()
+
+
+def find_dataset_references(value):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key == "source_datasets":
+                referenced_datasets.update(
+                    collect_strings(item)
+                )
+            elif (
+                key == "dataset"
+                and isinstance(item, str)
+                and item in {"employee", "engagement", "training"}
+            ):
+                referenced_datasets.add(item)
+
+            find_dataset_references(item)
+
+    elif isinstance(value, list):
+        for item in value:
+            find_dataset_references(item)
+
+
+for catalog in loaded_catalogs.values():
+    find_dataset_references(catalog)
+
+unknown_datasets = sorted(
+    referenced_datasets - known_datasets
+)
+
+print(f"Ismert adatkészletek: {len(known_datasets)}")
+print(f"Hivatkozott adatkészletek: {len(referenced_datasets)}")
+
+if unknown_datasets:
+    errors.append(
+        "Ismeretlen adatkészlet-hivatkozások: "
+        + ", ".join(unknown_datasets)
+    )
+
+for dataset in dataset_entries:
+    if not isinstance(dataset, dict):
+        continue
+
+    detail_catalog = dataset.get("detail_catalog")
+    data_file = dataset.get("file")
+
+    if detail_catalog and not (
+        CONFIG_DIR / detail_catalog
+    ).exists():
+        errors.append(
+            f"Hiányzó részletes katalógus: {detail_catalog}"
+        )
+
+    if data_file and not (
+        DATA_DIR / data_file
+    ).exists():
+        errors.append(
+            f"Hiányzó adatfájl: {data_file}"
+        )
+
+        
 print("\n" + "=" * 60)
 print("EREDMÉNY")
 print("=" * 60)
