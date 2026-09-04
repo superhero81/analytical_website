@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 import altair as alt
+import yaml
 
 
 st.set_page_config(
@@ -143,8 +144,27 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-DATA_FOLDER = Path("data/processed")
+BASE_DIR = Path(__file__).resolve().parent
+DATA_FOLDER = BASE_DIR / "data" / "processed"
+CONFIG_FOLDER = BASE_DIR / "config"
 
+
+@st.cache_data
+def load_catalogs():
+    catalogs = {}
+
+    for path in sorted(CONFIG_FOLDER.glob("*.yaml")):
+        with path.open(encoding="utf-8") as file:
+            content = yaml.safe_load(file)
+
+        if not isinstance(content, dict):
+            raise ValueError(
+                f"Hibás katalógusszerkezet: {path.name}"
+            )
+
+        catalogs[path.stem] = content
+
+    return catalogs
 
 @st.cache_data
 def load_data():
@@ -186,6 +206,21 @@ def load_data():
 
     return employees, engagement, training
 
+catalogs = load_catalogs()
+
+metric_definitions = {
+    metric["name"]: metric
+    for metric in catalogs["metrics"]["metrics"]
+}
+
+
+def get_metric_definition(metric_name):
+    if metric_name not in metric_definitions:
+        raise KeyError(
+            f"Ismeretlen metrika: {metric_name}"
+        )
+
+    return metric_definitions[metric_name]
 
 employees, engagement, training = load_data()
 
@@ -488,11 +523,15 @@ if "selected_kpi" not in st.session_state:
 def show_kpi_card(
     column,
     key,
+    metric_name,
     title,
     value,
     detail
 ):
-    is_selected = st.session_state.selected_kpi == key
+    metric = get_metric_definition(metric_name)
+    is_selected = (
+        st.session_state.selected_kpi == key
+    )
 
     card_text = (
         f"{title}\n\n"
@@ -504,10 +543,12 @@ def show_kpi_card(
         card_text,
         key=f"kpi_{key}",
         type="primary" if is_selected else "secondary",
-        use_container_width=True
+        use_container_width=True,
+        help=metric["description"]
     ):
         st.session_state.selected_kpi = key
         st.rerun()
+
 
 
 col1, col2, col3, col4, col5 = st.columns(5)
@@ -537,6 +578,7 @@ training_card_value = (
 show_kpi_card(
     col1,
     "headcount",
+    "ClosingHeadcount",
     "Állományi létszám",
     headcount_card_value,
     f"{headcount_change:+} fő / 12 hó"
@@ -545,6 +587,7 @@ show_kpi_card(
 show_kpi_card(
     col2,
     "hires",
+    "HireCount",
     "Belépők",
     hires_card_value,
     "Gördülő 12 hónap"
@@ -553,6 +596,7 @@ show_kpi_card(
 show_kpi_card(
     col3,
     "turnover",
+    "Rolling12MonthTurnoverRate",
     "Fluktuáció",
     turnover_card_value,
     f"Önkéntes: {voluntary_turnover_rate:.1f}%"
@@ -561,6 +605,7 @@ show_kpi_card(
 show_kpi_card(
     col4,
     "engagement",
+    "AverageEngagementIndex",
     "Engagement",
     engagement_card_value,
     (
@@ -577,6 +622,7 @@ show_kpi_card(
 show_kpi_card(
     col5,
     "training",
+    "TrainingParticipationRate",
     "Képzési részvétel",
     training_card_value,
     "Legalább 1 képzés / hónap"
