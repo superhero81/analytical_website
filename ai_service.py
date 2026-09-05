@@ -16,6 +16,7 @@ MODEL_NAMES = (
     "gemini-3.7-flash",
     "gemini-3.6-flash",
     "gemini-3.5-flash",
+    "gemini-2.5-flash",
 )
 
 class QuestionPlan(BaseModel):
@@ -114,6 +115,19 @@ Szabályok:
 
         except errors.ServerError as exc:
             last_error = exc
+
+        except errors.ClientError as exc:
+            status_code = getattr(
+                exc,
+                "code",
+                getattr(exc, "status_code", None),
+            )
+
+            if status_code == 429:
+                last_error = exc
+                continue
+
+            raise
 
     if response is None:
         raise last_error
