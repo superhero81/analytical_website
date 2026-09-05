@@ -45,6 +45,20 @@ class QuestionPlan(BaseModel):
     filters: list[QuestionFilter] = Field(
         default_factory=list
     )
+    group_by: list[Literal[
+        "DepartmentType",
+        "Generation",
+        "AgeGroup",
+    ]] = Field(default_factory=list)
+    group_values: dict[str, list[str]] = Field(
+        default_factory=dict
+    )
+    output_type: Literal[
+        "single_value",
+        "comparison",
+        "time_series",
+        "grouped_table",
+    ] = "single_value"
     clarification_question: str | None = None
     reason: str
 
@@ -125,6 +139,21 @@ Szabályok:
   használhatók.
 - Egy mezőhöz több kért kategória esetén külön listaelemeket adj vissza.
 - Ha nincs szűrés a kérdésben, a filters lista legyen üres.
+- Ha a kérdés csoportok szerinti bontást kér, például „generációk szerint”,
+  a dimenziót a group_by listában add vissza, ne a filters listában.
+- A group_by csak a filter_dimensions alatt felsorolt mezőt tartalmazhat.
+- Ha nincs kért bontás, a group_by lista legyen üres.
+- Ha a felhasználó csak bizonyos kategóriákat akar összehasonlítani,
+  a dimenzió kerüljön a group_by listába, a kiválasztott pontos
+  kategóriaértékek pedig a group_values megfelelő listájába.
+- Ha egy dimenzió minden kategóriáját kéri, ahhoz ne adj group_values értéket.
+- Az összehasonlítandó kategóriákat ne vond össze egyetlen filters szűrésbe.
+- Ha a kérdés időbeli alakulásra, trendre vagy teljes idősorra kérdez,
+  az output_type legyen time_series.
+- Ha csak két időpont vagy időszak különbségét kéri, az output_type
+  legyen comparison.
+- Ha bontást vagy rangsort kér, az output_type legyen grouped_table.
+- Egyetlen összesített eredménynél az output_type legyen single_value.
 - A „2026 első féléve” időszaka 2026-01-01–2026-06-30.
 - Hiányzó időszakot csak a katalógus kifejezett
   alapértelmezési szabálya alapján tölts ki.

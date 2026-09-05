@@ -7,6 +7,7 @@ from catalog_service import get_metric, load_catalogs
 from ai_service import plan_question
 from metric_engine import (
     SUPPORTED_METRICS,
+    calculate_engagement_time_series,
     calculate_metric,
 )
 
@@ -1439,6 +1440,361 @@ if st.button(
                         question_plan.metric_names
                     ):
                         if selected_metric not in SUPPORTED_METRICS:
+                            continue
+
+                        if question_plan.output_type == "time_series":
+                            grouped_time_series = bool(
+                                question_plan.group_by
+                            )
+
+                            if grouped_time_series:
+                                grouping_field = (
+                                    question_plan.group_by[0]
+                                )
+                                dimensioned_employees = (
+                                    add_demographic_dimensions(
+                                        analysis_employees,
+                                        question_plan.end_date,
+                                    )
+                                )
+                                requested_group_values = (
+                                    question_plan.group_values.get(
+                                        grouping_field
+                                    )
+                                )
+                                available_group_values = sorted(
+                                    dimensioned_employees[
+                                        grouping_field
+                                    ].dropna().unique()
+                                )
+                                if requested_group_values:
+                                    available_group_values = [
+                                        value
+                                        for value in available_group_values
+                                        if value in requested_group_values
+                                    ]
+                                grouped_records = []
+
+                                for group_value in available_group_values:
+                                    group_employees = (
+                                        dimensioned_employees[
+                                            dimensioned_employees[
+                                                grouping_field
+                                            ] == group_value
+                                        ]
+                                    )
+                                    group_ids = set(
+                                        group_employees["EmpID"]
+                                    )
+                                    group_engagement = (
+                                        analysis_engagement[
+                                            analysis_engagement[
+                                                "EmpID"
+                                            ].isin(group_ids)
+                                        ]
+                                    )
+
+                                    try:
+                                        group_result = (
+                                            calculate_engagement_time_series(
+                                                selected_metric,
+                                                group_employees,
+                                                group_engagement,
+                                                question_plan.start_date,
+                                                question_plan.end_date,
+                                            )
+                                        )
+                                    except ValueError:
+                                        continue
+
+                                    for record in group_result["records"]:
+                                        if (
+                                            record["RespondentCount"]
+                                            is not None
+                                            and record["RespondentCount"] >= 4
+                                        ):
+                                            grouped_records.append({
+                                                **record,
+                                                "Group": group_value,
+                                            })
+
+                                if not grouped_records:
+                                    raise ValueError(
+                                        "Nincs megjeleníthető, legalább "
+                                        "4 fős csoporteredmény."
+                                    )
+
+                                time_series_result = group_result
+                                time_series_data = pd.DataFrame(
+                                    grouped_records
+                                )
+                            else:
+                                time_series_result = (
+                                    calculate_engagement_time_series(
+                                        selected_metric,
+                                        analysis_employees,
+                                        analysis_engagement,
+                                        question_plan.start_date,
+                                        question_plan.end_date,
+                                    )
+                                )
+                                time_series_data = pd.DataFrame(
+                                    time_series_result["records"]
+                                )
+                                time_series_data["Group"] = (
+                                    analysis_filter_label
+                                )
+
+                            if "0–100" in time_series_result["unit"]:
+                                time_series_domain = [50, 100]
+                            elif time_series_result["unit"] == "százalék":
+                                time_series_domain = [0, 100]
+                            else:
+                                time_series_domain = [1, 5]
+
+                            time_series_chart = (
+                                alt.Chart(time_series_data)
+                                .mark_line(point=True)
+                                .encode(
+                                    x=alt.X(
+                                        "SurveyWaveID:N",
+                                        title="Felmérési hullám",
+                                        axis=alt.Axis(
+                                            labelAngle=-45,
+                                        ),
+                                        sort=alt.SortField(
+                                            field="SurveyLaunchDate",
+                                            order="ascending",
+                                        ),
+                                    ),
+                                    y=alt.Y(
+                                        "Value:Q",
+                                        title=time_series_result[
+                                            "unit"
+                                        ],
+                                        scale=alt.Scale(
+                                            domain=time_series_domain,
+                                            zero=False,
+                                        ),
+                                    ),
+                                    color=alt.Color(
+                                        "Group:N",
+                                        title=(
+                                            grouping_field
+                                            if grouped_time_series
+                                            else None
+                                        ),
+                                        legend=(
+                                            alt.Legend()
+                                            if grouped_time_series
+                                            else None
+                                        ),
+                                    ),
+                                    tooltip=[
+                                        alt.Tooltip(
+                                            "SurveyWaveID:N",
+                                            title="Hullám",
+                                        ),
+                                        alt.Tooltip(
+                                            "SurveyLaunchDate:T",
+                                            title="Indulás",
+                                            format="%Y-%m-%d",
+                                        ),
+                                        alt.Tooltip(
+                                            "Value:Q",
+                                            title="Érték",
+                                            format=".1f",
+                                        ),
+                                        alt.Tooltip(
+                                            "Group:N",
+                                            title="Csoport",
+                                        ),
+                                        alt.Tooltip(
+                                            "RespondentCount:Q",
+                                            title="Érvényes válaszok",
+                                            format=",.0f",
+                                        ),
+                                    ]
+                                )
+                                .properties(height=350)
+                            )
+
+                            st.success(
+                                f"**{time_series_result['label']} "
+                                "időbeli alakulása**"
+                            )
+                            st.altair_chart(
+                                time_series_chart,
+                                width="stretch"
+                            )
+                            if grouped_time_series:
+                                with st.expander(
+                                    "Idősoros adatok"
+                                ):
+                                    st.dataframe(
+                                        time_series_data[[
+                                            "SurveyWaveID",
+                                            "Group",
+                                            "Value",
+                                            "RespondentCount",
+                                        ]],
+                                        hide_index=True,
+                                        use_container_width=True,
+                                    )
+                                st.caption(
+                                    "Az 1–3 érvényes választ "
+                                    "tartalmazó csoportpontok nem "
+                                    "jelennek meg."
+                                )
+                            else:
+                                change_value = (
+                                    time_series_result["change"]
+                                )
+                                st.caption(
+                                    f"Változás az első és utolsó "
+                                    f"hullám között: {change_value:+.1f} "
+                                    f"indexpont · Szűrés: "
+                                    f"{analysis_filter_label}"
+                                )
+                            continue
+
+                        if question_plan.group_by:
+                            grouping_field = question_plan.group_by[0]
+                            grouping_date = (
+                                question_plan.end_date
+                                or reference_date
+                            )
+                            dimensioned_employees = (
+                                add_demographic_dimensions(
+                                    analysis_employees,
+                                    grouping_date,
+                                )
+                            )
+                            group_values = sorted(
+                                dimensioned_employees[
+                                    grouping_field
+                                ].dropna().unique()
+                            )
+                            requested_values = (
+                                question_plan.group_values.get(
+                                    grouping_field
+                                )
+                            )
+                            if requested_values:
+                                group_values = [
+                                    value
+                                    for value in group_values
+                                    if value in requested_values
+                                ]
+
+                            comparison_records = []
+                            for group_value in group_values:
+                                group_employees = (
+                                    dimensioned_employees[
+                                        dimensioned_employees[
+                                            grouping_field
+                                        ] == group_value
+                                    ]
+                                )
+                                group_ids = set(
+                                    group_employees["EmpID"]
+                                )
+                                group_engagement = (
+                                    analysis_engagement[
+                                        analysis_engagement[
+                                            "EmpID"
+                                        ].isin(group_ids)
+                                    ]
+                                )
+                                group_training = (
+                                    analysis_training[
+                                        analysis_training[
+                                            "EmpID"
+                                        ].isin(group_ids)
+                                    ]
+                                )
+
+                                group_metric_result = calculate_metric(
+                                    selected_metric,
+                                    group_employees,
+                                    question_plan.start_date,
+                                    question_plan.end_date,
+                                    engagement=group_engagement,
+                                    training=group_training,
+                                )
+                                sample_size = group_metric_result.get(
+                                    "valid_response_count",
+                                    group_employees["EmpID"].nunique(),
+                                )
+                                if sample_size >= 4:
+                                    comparison_records.append({
+                                        "Csoport": group_value,
+                                        "Érték": group_metric_result[
+                                            "value"
+                                        ],
+                                        "Elemszám": sample_size,
+                                    })
+
+                            if not comparison_records:
+                                raise ValueError(
+                                    "Nincs megjeleníthető, legalább "
+                                    "4 fős csoporteredmény."
+                                )
+
+                            comparison_data = pd.DataFrame(
+                                comparison_records
+                            )
+                            comparison_chart = (
+                                alt.Chart(comparison_data)
+                                .mark_bar()
+                                .encode(
+                                    x=alt.X(
+                                        "Csoport:N",
+                                        title=None,
+                                        sort="-y",
+                                        axis=alt.Axis(labelAngle=-30),
+                                    ),
+                                    y=alt.Y(
+                                        "Érték:Q",
+                                        title=group_metric_result["unit"],
+                                        scale=alt.Scale(zero=False),
+                                    ),
+                                    tooltip=[
+                                        alt.Tooltip(
+                                            "Csoport:N",
+                                            title="Csoport",
+                                        ),
+                                        alt.Tooltip(
+                                            "Érték:Q",
+                                            title="Érték",
+                                            format=".1f",
+                                        ),
+                                        alt.Tooltip(
+                                            "Elemszám:Q",
+                                            title="Elemszám",
+                                            format=",.0f",
+                                        ),
+                                    ]
+                                )
+                                .properties(height=350)
+                            )
+                            st.success(
+                                f"**{group_metric_result['label']} "
+                                f"– összehasonlítás**"
+                            )
+                            st.altair_chart(
+                                comparison_chart,
+                                width="stretch"
+                            )
+                            st.dataframe(
+                                comparison_data,
+                                hide_index=True,
+                                use_container_width=True,
+                            )
+                            st.caption(
+                                "Az 1–3 fős csoporteredmények nem "
+                                "jelennek meg."
+                            )
                             continue
 
                         metric_result = calculate_metric(

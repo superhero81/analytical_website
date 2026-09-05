@@ -1102,3 +1102,82 @@ def calculate_metric(
 
     return result
 
+
+def calculate_engagement_time_series(
+    metric_name,
+    employees,
+    engagement,
+    start_date,
+    end_date
+):
+    metric_mapping = {
+        "EngagementIndexChange": "AverageEngagementIndex",
+        "SatisfactionIndexChange": "AverageSatisfactionIndex",
+        "WorkLifeBalanceIndexChange": (
+            "AverageWorkLifeBalanceIndex"
+        ),
+    }
+    base_metric = metric_mapping.get(
+        metric_name,
+        metric_name
+    )
+
+    allowed_metrics = (
+        set(ENGAGEMENT_SCORE_FIELDS)
+        | set(ENGAGEMENT_INDEX_FIELDS)
+        | set(ENGAGEMENT_BOX_METRICS)
+        | {"CompositeEngagementIndex", "SurveyResponseRate"}
+    )
+    if base_metric not in allowed_metrics:
+        raise ValueError(
+            "Ehhez a mutatóhoz nem készíthető "
+            "engagement-idősor."
+        )
+
+    period_data = _waves_in_period(
+        engagement,
+        pd.Timestamp(start_date),
+        pd.Timestamp(end_date)
+    )
+    wave_dates = sorted(
+        period_data["SurveyLaunchDate"].dropna().unique()
+    )
+    if len(wave_dates) < 2:
+        raise ValueError(
+            "Az idősorhoz legalább két felmérési "
+            "hullám szükséges."
+        )
+
+    records = []
+    for wave_date in wave_dates:
+        wave_date = pd.Timestamp(wave_date)
+        result = calculate_metric(
+            base_metric,
+            employees,
+            wave_date,
+            wave_date,
+            engagement=engagement,
+        )
+        records.append({
+            "SurveyLaunchDate": wave_date,
+            "SurveyWaveID": result.get("wave_id"),
+            "Value": result["value"],
+            "RespondentCount": result.get(
+                "valid_response_count"
+            ),
+        })
+
+    return {
+        "metric_name": base_metric,
+        "label": get_metric(base_metric)["label"],
+        "unit": get_metric(base_metric)["unit"],
+        "records": records,
+        "change": records[-1]["Value"] - records[0]["Value"],
+        "start_date": records[0][
+            "SurveyLaunchDate"
+        ].date().isoformat(),
+        "end_date": records[-1][
+            "SurveyLaunchDate"
+        ].date().isoformat(),
+    }
+
