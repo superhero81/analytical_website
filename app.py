@@ -1310,11 +1310,45 @@ if st.button(
                             employees,
                             question_plan.start_date,
                             question_plan.end_date,
-                            engagement=engagement
+                            engagement=engagement,
+                            training=training
                         )
-                        if metric_result["unit"] == "százalék":
+                        metric_value = metric_result["value"]
+                        metric_definition = get_metric(
+                            selected_metric
+                        )
+                        decimals = metric_definition.get(
+                            "rounding",
+                            {}
+                        ).get("decimals", 0)
+
+                        if isinstance(metric_value, dict):
+                            grouped_result = pd.DataFrame(
+                                metric_value.items(),
+                                columns=["Csoport", "Érték"]
+                            )
+                            grouped_result["Érték"] = (
+                                grouped_result["Érték"].round(2)
+                            )
+
+                            st.success(
+                                f"**{metric_result['label']}**"
+                            )
+                            st.dataframe(
+                                grouped_result,
+                                hide_index=True,
+                                use_container_width=True,
+                                column_config={
+                                    "Érték": st.column_config.NumberColumn(
+                                        "Költség (USD)",
+                                        format="%.2f"
+                                    )
+                                }
+                            )
+
+                        elif metric_result["unit"] == "százalék":
                             formatted_value = (
-                                f"{metric_result['value']:.1f}"
+                                f"{metric_value:.{decimals}f}"
                                 .replace(".", ",")
                             )
                             displayed_unit = "%"
@@ -1324,7 +1358,7 @@ if st.button(
                             "OpeningClosingAverageHeadcount",
                         }:
                             formatted_value = (
-                                f"{metric_result['value']:,.1f}"
+                                f"{metric_value:,.{decimals}f}"
                                 .replace(",", " ")
                                 .replace(".", ",")
                             )
@@ -1332,16 +1366,18 @@ if st.button(
 
                         else:
                             formatted_value = (
-                                f"{metric_result['value']:,.0f}"
+                                f"{metric_value:,.{decimals}f}"
                                 .replace(",", " ")
+                                .replace(".", ",")
                             )
                             displayed_unit = metric_result["unit"]
 
-                        st.success(
-                            f"**{metric_result['label']}: "
-                            f"{formatted_value} "
-                            f"{displayed_unit}**"
-                        )
+                        if not isinstance(metric_value, dict):
+                            st.success(
+                                f"**{metric_result['label']}: "
+                                f"{formatted_value} "
+                                f"{displayed_unit}**"
+                            )
 
                         st.caption(
                             f"Időszak: "

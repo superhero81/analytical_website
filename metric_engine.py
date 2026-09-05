@@ -37,6 +37,40 @@ SUPPORTED_METRICS = {
     "PooledAverageSatisfactionIndex",
     "PooledAverageWorkLifeBalanceIndex",
     "PooledCompositeEngagementIndex",
+    "TrainingParticipationRate",
+    "TrainingCompletionRate",
+    "SuccessfulTrainingCoverage",
+    "AssessmentPassRate",
+    "TrainingFeedbackResponseRate",
+    "AverageOverallSatisfactionScore",
+    "AverageOverallSatisfactionIndex",
+    "AverageTrainerEvaluationScore",
+    "AverageTrainerEvaluationIndex",
+    "AverageJobRelevanceScore",
+    "AverageJobRelevanceIndex",
+    "AveragePersonalRelevanceScore",
+    "AveragePersonalRelevanceIndex",
+    "AverageDigitalContentUsabilityScore",
+    "AverageDigitalContentUsabilityIndex",
+    "OverallSatisfactionTop2BoxRate",
+    "OverallSatisfactionLow2BoxRate",
+    "TrainerEvaluationTop2BoxRate",
+    "TrainerEvaluationLow2BoxRate",
+    "JobRelevanceTop2BoxRate",
+    "JobRelevanceLow2BoxRate",
+    "PersonalRelevanceTop2BoxRate",
+    "PersonalRelevanceLow2BoxRate",
+    "DigitalContentUsabilityTop2BoxRate",
+    "DigitalContentUsabilityLow2BoxRate",
+    "CostPerParticipant",
+    "CostPerSuccessfulCompletion",
+    "TrainingCostByProgram",
+    "TrainingCostByProvider",
+    "TrainingIncompleteRate",
+    "TrainingCancellationRate",
+    "TotalTrainingCost",
+    "TrainingParticipantCount",
+    "SuccessfulTrainingCompletionCount",
 }
 
 
@@ -77,6 +111,81 @@ CHANGE_INDEX_FIELDS = {
     "EngagementIndexChange": "EngagementScore",
     "SatisfactionIndexChange": "SatisfactionScore",
     "WorkLifeBalanceIndexChange": "WorkLifeBalanceScore",
+}
+
+TRAINING_SCORE_FIELDS = {
+    "AverageOverallSatisfactionScore": (
+        "OverallSatisfactionScore"
+    ),
+    "AverageTrainerEvaluationScore": (
+        "TrainerEvaluationScore"
+    ),
+    "AverageJobRelevanceScore": "JobRelevanceScore",
+    "AveragePersonalRelevanceScore": (
+        "PersonalRelevanceScore"
+    ),
+    "AverageDigitalContentUsabilityScore": (
+        "DigitalContentUsabilityScore"
+    ),
+}
+
+TRAINING_INDEX_FIELDS = {
+    "AverageOverallSatisfactionIndex": (
+        "OverallSatisfactionScore"
+    ),
+    "AverageTrainerEvaluationIndex": (
+        "TrainerEvaluationScore"
+    ),
+    "AverageJobRelevanceIndex": "JobRelevanceScore",
+    "AveragePersonalRelevanceIndex": (
+        "PersonalRelevanceScore"
+    ),
+    "AverageDigitalContentUsabilityIndex": (
+        "DigitalContentUsabilityScore"
+    ),
+}
+
+TRAINING_BOX_METRICS = {
+    "OverallSatisfactionTop2BoxRate": (
+        "OverallSatisfactionScore",
+        {4, 5},
+    ),
+    "OverallSatisfactionLow2BoxRate": (
+        "OverallSatisfactionScore",
+        {1, 2},
+    ),
+    "TrainerEvaluationTop2BoxRate": (
+        "TrainerEvaluationScore",
+        {4, 5},
+    ),
+    "TrainerEvaluationLow2BoxRate": (
+        "TrainerEvaluationScore",
+        {1, 2},
+    ),
+    "JobRelevanceTop2BoxRate": (
+        "JobRelevanceScore",
+        {4, 5},
+    ),
+    "JobRelevanceLow2BoxRate": (
+        "JobRelevanceScore",
+        {1, 2},
+    ),
+    "PersonalRelevanceTop2BoxRate": (
+        "PersonalRelevanceScore",
+        {4, 5},
+    ),
+    "PersonalRelevanceLow2BoxRate": (
+        "PersonalRelevanceScore",
+        {1, 2},
+    ),
+    "DigitalContentUsabilityTop2BoxRate": (
+        "DigitalContentUsabilityScore",
+        {4, 5},
+    ),
+    "DigitalContentUsabilityLow2BoxRate": (
+        "DigitalContentUsabilityScore",
+        {1, 2},
+    ),
 }
 
 
@@ -361,12 +470,58 @@ def _change_between_waves(
     }
 
 
+def _training_in_period(training, start_date, end_date):
+    if training is None:
+        raise ValueError(
+            "A képzési metrikához a képzési "
+            "adatállomány is szükséges."
+        )
+    if start_date is None or end_date is None:
+        raise ValueError(
+            "A képzési metrikához kezdő- és "
+            "záródátum szükséges."
+        )
+
+    data = training.copy()
+    data["TrainingDate"] = pd.to_datetime(
+        data["TrainingDate"]
+    )
+    return data[
+        (data["TrainingDate"] >= start_date)
+        & (data["TrainingDate"] <= end_date)
+    ]
+
+
+def _eligible_employee_count(
+    employees,
+    start_date,
+    end_date
+):
+    mask = (
+        (employees["StartDate"] <= end_date)
+        & (
+            employees["ExitDate"].isna()
+            | (employees["ExitDate"] > start_date)
+        )
+    )
+    return employees.loc[mask, "EmpID"].nunique()
+
+
+def _rate(numerator, denominator):
+    return (
+        numerator / denominator * 100
+        if denominator > 0
+        else 0
+    )
+
+
 def calculate_metric(
     metric_name,
     employees,
     start_date=None,
     end_date=None,
-    engagement=None
+    engagement=None,
+    training=None
 ):
     metric = get_metric(metric_name)
 
@@ -666,6 +821,226 @@ def calculate_metric(
             complete.index,
             "SurveyWaveID",
         ].nunique()
+
+    elif metric_name in {
+        "TrainingParticipationRate",
+        "SuccessfulTrainingCoverage",
+    }:
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        eligible_count = _eligible_employee_count(
+            employees,
+            start_date,
+            end_date
+        )
+        required_status = (
+            "Completed"
+            if metric_name == "SuccessfulTrainingCoverage"
+            else None
+        )
+        if required_status is None:
+            relevant = period_training[
+                period_training["CompletionStatus"]
+                != "Cancelled"
+            ]
+        else:
+            relevant = period_training[
+                period_training["CompletionStatus"]
+                == required_status
+            ]
+        participant_count = relevant["EmpID"].nunique()
+        value = _rate(participant_count, eligible_count)
+
+    elif metric_name in {
+        "TrainingCompletionRate",
+        "TrainingIncompleteRate",
+    }:
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        started = period_training[
+            period_training["CompletionStatus"].isin(
+                ["Completed", "Incomplete"]
+            )
+        ]
+        target_status = (
+            "Completed"
+            if metric_name == "TrainingCompletionRate"
+            else "Incomplete"
+        )
+        value = _rate(
+            (started["CompletionStatus"] == target_status).sum(),
+            len(started),
+        )
+
+    elif metric_name == "TrainingCancellationRate":
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        valid_statuses = period_training[
+            "CompletionStatus"
+        ].dropna()
+        value = _rate(
+            (valid_statuses == "Cancelled").sum(),
+            len(valid_statuses),
+        )
+
+    elif metric_name == "AssessmentPassRate":
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        assessed = period_training[
+            period_training["TrainingResult"].isin(
+                ["Passed", "Failed"]
+            )
+        ]
+        value = _rate(
+            (assessed["TrainingResult"] == "Passed").sum(),
+            len(assessed),
+        )
+
+    elif metric_name == "TrainingFeedbackResponseRate":
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        eligible_feedback = period_training[
+            period_training["CompletionStatus"] != "Cancelled"
+        ]
+        value = _rate(
+            (
+                eligible_feedback["FeedbackSubmitted"] == "Yes"
+            ).sum(),
+            len(eligible_feedback),
+        )
+
+    elif metric_name in TRAINING_SCORE_FIELDS:
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        value, valid_response_count = _valid_score_mean(
+            period_training,
+            TRAINING_SCORE_FIELDS[metric_name]
+        )
+
+    elif metric_name in TRAINING_INDEX_FIELDS:
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        score, valid_response_count = _valid_score_mean(
+            period_training,
+            TRAINING_INDEX_FIELDS[metric_name]
+        )
+        value = _score_to_index(score)
+
+    elif metric_name in TRAINING_BOX_METRICS:
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        field, accepted_values = TRAINING_BOX_METRICS[
+            metric_name
+        ]
+        value, valid_response_count = _box_rate(
+            period_training,
+            field,
+            accepted_values
+        )
+
+    elif metric_name in {
+        "CostPerParticipant",
+        "CostPerSuccessfulCompletion",
+        "TotalTrainingCost",
+    }:
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        non_cancelled = period_training[
+            period_training["CompletionStatus"] != "Cancelled"
+        ]
+        total_cost = non_cancelled["TrainingCostUSD"].sum()
+
+        if metric_name == "TotalTrainingCost":
+            value = total_cost
+        elif metric_name == "CostPerParticipant":
+            participant_total = non_cancelled["EmpID"].nunique()
+            value = (
+                total_cost / participant_total
+                if participant_total > 0
+                else 0
+            )
+        else:
+            completed_count = (
+                non_cancelled["CompletionStatus"] == "Completed"
+            ).sum()
+            value = (
+                total_cost / completed_count
+                if completed_count > 0
+                else 0
+            )
+
+    elif metric_name in {
+        "TrainingParticipantCount",
+        "SuccessfulTrainingCompletionCount",
+    }:
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        if metric_name == "TrainingParticipantCount":
+            relevant = period_training[
+                period_training["CompletionStatus"].isin(
+                    ["Completed", "Incomplete"]
+                )
+            ]
+            value = relevant["EmpID"].nunique()
+        else:
+            relevant = period_training[
+                period_training["CompletionStatus"] == "Completed"
+            ]
+            value = relevant["TrainingRecordID"].nunique()
+
+    elif metric_name in {
+        "TrainingCostByProgram",
+        "TrainingCostByProvider",
+    }:
+        period_training = _training_in_period(
+            training,
+            start_date,
+            end_date
+        )
+        non_cancelled = period_training[
+            period_training["CompletionStatus"] != "Cancelled"
+        ]
+        grouping_field = (
+            "TrainingProgramName"
+            if metric_name == "TrainingCostByProgram"
+            else "TrainingProvider"
+        )
+        value = (
+            non_cancelled.groupby(grouping_field)["TrainingCostUSD"]
+            .sum()
+            .sort_values(ascending=False)
+            .to_dict()
+        )
 
     else:
         raise NotImplementedError(
