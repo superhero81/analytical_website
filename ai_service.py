@@ -9,6 +9,7 @@ from catalog_service import (
     get_metric_registry,
     get_routing_registry,
 )
+from datetime import date
 
 
 MODEL_NAMES = (
@@ -26,6 +27,8 @@ class QuestionPlan(BaseModel):
     metric_names: list[str] = Field(
         default_factory=list
     )
+    start_date: date | None = None
+    end_date: date | None = None
     clarification_question: str | None = None
     reason: str
 
@@ -69,6 +72,12 @@ Szabályok:
 - Ha a szükséges adat nem áll rendelkezésre, a status
   legyen out_of_scope.
 - A reason rövid, magyar nyelvű indoklás legyen.
+- Az explicit időszakot start_date és end_date mezőkkel add meg,
+  ISO YYYY-MM-DD formátumban.
+- Egy konkrét napnál a start_date és end_date legyen azonos.
+- A „2026 első féléve” időszaka 2026-01-01–2026-06-30.
+- Hiányzó időszakot csak a katalógus kifejezett
+  alapértelmezési szabálya alapján tölts ki.
 """
 
     context = build_routing_context()

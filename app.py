@@ -5,7 +5,10 @@ import streamlit as st
 import altair as alt
 from catalog_service import get_metric, load_catalogs
 from ai_service import plan_question
-
+from metric_engine import (
+    SUPPORTED_METRICS,
+    calculate_metric,
+)
 
 st.set_page_config(
     page_title="HR Insight AI",
@@ -1227,8 +1230,9 @@ st.divider()
 st.header("Kérdezd a HR-adatokat")
 
 st.caption(
-    "Fejlesztési teszt: az AI egyelőre a kérdést "
-    "értelmezi, de még nem végzi el a számítást."
+    "Fejlesztési teszt: az AI értelmezi a kérdést, "
+    "a már bekötött mutatókat pedig az alkalmazás "
+    "az adatbázisból számítja ki."
 )
 
 if "pending_ai_question" not in st.session_state:
@@ -1289,10 +1293,56 @@ if st.button(
 
             if question_plan.status == "answerable":
                 st.session_state.pending_ai_question = None
-                st.success(
-                    "A kérdés megválaszolható "
-                    "a rendelkezésre álló adatokból."
-                )
+
+                if not question_plan.metric_names:
+                    st.warning(
+                        "Az AI nem választott számítható mutatót."
+                    )
+
+                else:
+                    selected_metric = (
+                        question_plan.metric_names[0]
+                    )
+
+                    if selected_metric in SUPPORTED_METRICS:
+                        metric_result = calculate_metric(
+                            selected_metric,
+                            employees,
+                            question_plan.start_date,
+                            question_plan.end_date,
+                        )
+                        if selected_metric == "AverageHeadcount":
+                            formatted_value = (
+                                f"{metric_result['value']:,.1f}"
+                                .replace(",", " ")
+                                .replace(".", ",")
+                            )
+                        else:
+                            formatted_value = (
+                                f"{metric_result['value']:,}"
+                                .replace(",", " ")
+                            )
+
+                        st.success(
+                            f"**{metric_result['label']}: "
+                            f"{formatted_value} "
+                            f"{metric_result['unit']}**"
+                        )
+
+                        st.caption(
+                            f"Időszak: "
+                            f"{metric_result['start_date']} – "
+                            f"{metric_result['end_date']} · "
+                            f"Szervezeti terület: "
+                            f"{selected_department}"
+                        )
+
+                    else:
+                        st.info(
+                            "A kérdést az AI helyesen értelmezte, "
+                            "de ennek a mutatónak a számítása "
+                            "még nincs bekötve."
+                        )
 
             elif (
                 question_plan.status
