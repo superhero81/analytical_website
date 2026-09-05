@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 import altair as alt
 from catalog_service import get_metric, load_catalogs
-from ai_service import plan_question
+from ai_service import interpret_results, plan_question
 from metric_engine import (
     SUPPORTED_METRICS,
     calculate_engagement_time_series,
@@ -1333,6 +1333,15 @@ st.caption(
     "az adatbázisból számítja ki."
 )
 
+ai_interpretation_enabled = st.toggle(
+    "AI-alapú szöveges értelmezés",
+    value=False,
+    help=(
+        "Bekapcsolva az aggregált eredményekből rövid "
+        "értelmezést készít. Ez további AI-kvótát használ."
+    ),
+)
+
 if "pending_ai_question" not in st.session_state:
     st.session_state.pending_ai_question = None
 
@@ -1436,6 +1445,8 @@ if st.button(
                             + ", ".join(unsupported_metrics)
                         )
 
+                    interpretation_payload = []
+
                     for selected_metric in (
                         question_plan.metric_names
                     ):
@@ -1444,13 +1455,12 @@ if st.button(
 
                         if question_plan.output_type == "time_series":
                             grouped_time_series = bool(
-                                question_plan.group_by
+                                question_plan.groupings
                             )
 
                             if grouped_time_series:
-                                grouping_field = (
-                                    question_plan.group_by[0]
-                                )
+                                grouping = question_plan.groupings[0]
+                                grouping_field = grouping.field
                                 dimensioned_employees = (
                                     add_demographic_dimensions(
                                         analysis_employees,
@@ -1458,9 +1468,7 @@ if st.button(
                                     )
                                 )
                                 requested_group_values = (
-                                    question_plan.group_values.get(
-                                        grouping_field
-                                    )
+                                    grouping.values
                                 )
                                 available_group_values = sorted(
                                     dimensioned_employees[
@@ -1656,10 +1664,19 @@ if st.button(
                                     f"indexpont · Szűrés: "
                                     f"{analysis_filter_label}"
                                 )
+                            interpretation_payload.append({
+                                "metric": time_series_result["label"],
+                                "unit": time_series_result["unit"],
+                                "type": "time_series",
+                                "data": time_series_data.to_dict(
+                                    orient="records"
+                                ),
+                            })
                             continue
 
-                        if question_plan.group_by:
-                            grouping_field = question_plan.group_by[0]
+                        if question_plan.groupings:
+                            grouping = question_plan.groupings[0]
+                            grouping_field = grouping.field
                             grouping_date = (
                                 question_plan.end_date
                                 or reference_date
@@ -1676,9 +1693,7 @@ if st.button(
                                 ].dropna().unique()
                             )
                             requested_values = (
-                                question_plan.group_values.get(
-                                    grouping_field
-                                )
+                                grouping.values
                             )
                             if requested_values:
                                 group_values = [
@@ -1795,6 +1810,12 @@ if st.button(
                                 "Az 1–3 fős csoporteredmények nem "
                                 "jelennek meg."
                             )
+                            interpretation_payload.append({
+                                "metric": group_metric_result["label"],
+                                "unit": group_metric_result["unit"],
+                                "type": "group_comparison",
+                                "data": comparison_records,
+                            })
                             continue
 
                         metric_result = calculate_metric(
@@ -1871,6 +1892,22 @@ if st.button(
                                 f"{displayed_unit}**"
                             )
 
+                        interpretation_payload.append({
+                            "metric": metric_result["label"],
+                            "unit": metric_result["unit"],
+                            "type": (
+                                "grouped_table"
+                                if isinstance(metric_value, dict)
+                                else "single_value"
+                            ),
+                            "value": metric_value,
+                            "valid_response_count": (
+                                metric_result.get(
+                                    "valid_response_count"
+                                )
+                            ),
+                        })
+
                         st.caption(
                             f"Időszak: "
                             f"{metric_result['start_date']} – "
@@ -1878,6 +1915,20 @@ if st.button(
                             f"Szűrés: "
                             f"{analysis_filter_label}"
                         )
+
+                    if (
+                        ai_interpretation_enabled
+                        and interpretation_payload
+                    ):
+                        with st.spinner(
+                            "AI-értelmezés készítése..."
+                        ):
+                            interpretation_text = interpret_results(
+                                question_for_planning,
+                                interpretation_payload,
+                                st.secrets["GEMINI_API_KEY"],
+                            )
+                        st.info(interpretation_text)
 
             elif (
                 question_plan.status

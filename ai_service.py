@@ -30,6 +30,15 @@ class QuestionFilter(BaseModel):
     value: str
 
 
+class QuestionGrouping(BaseModel):
+    field: Literal[
+        "DepartmentType",
+        "Generation",
+        "AgeGroup",
+    ]
+    values: list[str] = Field(default_factory=list)
+
+
 class QuestionPlan(BaseModel):
     status: Literal[
         "answerable",
@@ -45,13 +54,8 @@ class QuestionPlan(BaseModel):
     filters: list[QuestionFilter] = Field(
         default_factory=list
     )
-    group_by: list[Literal[
-        "DepartmentType",
-        "Generation",
-        "AgeGroup",
-    ]] = Field(default_factory=list)
-    group_values: dict[str, list[str]] = Field(
-        default_factory=dict
+    groupings: list[QuestionGrouping] = Field(
+        default_factory=list
     )
     output_type: Literal[
         "single_value",
@@ -140,13 +144,12 @@ Szabályok:
 - Egy mezőhöz több kért kategória esetén külön listaelemeket adj vissza.
 - Ha nincs szűrés a kérdésben, a filters lista legyen üres.
 - Ha a kérdés csoportok szerinti bontást kér, például „generációk szerint”,
-  a dimenziót a group_by listában add vissza, ne a filters listában.
-- A group_by csak a filter_dimensions alatt felsorolt mezőt tartalmazhat.
-- Ha nincs kért bontás, a group_by lista legyen üres.
+  a dimenziót a groupings listában add vissza, ne a filters listában.
+- A grouping field csak a filter_dimensions alatt felsorolt mező lehet.
+- Ha nincs kért bontás, a groupings lista legyen üres.
 - Ha a felhasználó csak bizonyos kategóriákat akar összehasonlítani,
-  a dimenzió kerüljön a group_by listába, a kiválasztott pontos
-  kategóriaértékek pedig a group_values megfelelő listájába.
-- Ha egy dimenzió minden kategóriáját kéri, ahhoz ne adj group_values értéket.
+  a kiválasztott pontos kategóriaértékek kerüljenek a grouping values listájába.
+- Ha egy dimenzió minden kategóriáját kéri, a values lista legyen üres.
 - Az összehasonlítandó kategóriákat ne vond össze egyetlen filters szűrésbe.
 - Ha a kérdés időbeli alakulásra, trendre vagy teljes idősorra kérdez,
   az output_type legyen time_series.
@@ -215,3 +218,66 @@ Szabályok:
         )
 
     return response.parsed
+
+
+def interpret_results(question, result_payload, api_key):
+    client = genai.Client(api_key=api_key)
+    system_instruction = """
+Te egy óvatos HR-adatelemző vagy.
+
+Kizárólag a megadott aggregált eredményeket értelmezd magyarul.
+Írj legfeljebb 4 rövid mondatot.
+Emeld ki a legfontosabb szintet, változást vagy csoportkülönbséget.
+Ne találj ki okot, hiányzó adatot vagy szervezeti eseményt.
+Különítsd el a megfigyelt eredményt a lehetséges magyarázattól.
+Oksági következtetést ne adj.
+Kis elemszám vagy hiányzó adat esetén jelezd a bizonytalanságot.
+"""
+    prompt = (
+        "FELHASZNÁLÓI KÉRDÉS:\n"
+        + question
+        + "\n\nAGGREGÁLT EREDMÉNYEK:\n"
+        + json.dumps(
+            result_payload,
+            ensure_ascii=False,
+            default=str,
+        )
+    )
+    response = None
+    last_error = None
+
+    for model_name in MODEL_NAMES:
+        try:
+            chat = client.chats.create(
+                model=model_name,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.2,
+                ),
+            )
+            response = chat.send_message(prompt)
+            break
+
+        except errors.ServerError as exc:
+            last_error = exc
+
+        except errors.ClientError as exc:
+            status_code = getattr(
+                exc,
+                "code",
+                getattr(exc, "status_code", None),
+            )
+            if status_code == 429:
+                last_error = exc
+                continue
+            raise
+
+    if response is None:
+        raise last_error
+
+    if not response.text:
+        raise ValueError(
+            "Az AI nem adott szöveges értelmezést."
+        )
+
+    return response.text.strip()
