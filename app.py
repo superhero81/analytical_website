@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 import altair as alt
 from catalog_service import get_metric, load_catalogs
-
+from ai_service import plan_question
 
 
 st.set_page_config(
@@ -1221,3 +1221,99 @@ elif st.session_state.selected_kpi == "training":
         "aránya a befejezett és nem teljesített "
         "képzések között."
     )
+
+
+st.divider()
+st.header("Kérdezd a HR-adatokat")
+
+st.caption(
+    "Fejlesztési teszt: az AI egyelőre a kérdést "
+    "értelmezi, de még nem végzi el a számítást."
+)
+
+if "pending_ai_question" not in st.session_state:
+    st.session_state.pending_ai_question = None
+
+is_clarification = (
+    st.session_state.pending_ai_question is not None
+)
+
+ai_question = st.text_area(
+    (
+        "Add meg a pontosítást"
+        if is_clarification
+        else "Mit szeretnél megtudni?"
+    ),
+    placeholder=(
+        "Például: 2026 első félévében."
+        if is_clarification
+        else (
+            "Például: Mennyi volt az átlagos "
+            "létszám 2026 első félévében?"
+        )
+    ),
+    key="ai_question"
+)
+
+if st.button(
+    (
+        "Pontosítás elküldése"
+        if is_clarification
+        else "Kérdés értelmezése"
+    ),
+    key="ai_question_button"
+):
+    if not ai_question.strip():
+        st.warning("Írj be egy kérdést vagy pontosítást.")
+
+    elif not st.secrets.get("GEMINI_API_KEY"):
+        st.error("A Gemini API-kulcs nincs beállítva.")
+
+    else:
+        if is_clarification:
+            question_for_planning = (
+                "Eredeti kérdés:\n"
+                f"{st.session_state.pending_ai_question}\n\n"
+                "Felhasználói pontosítás:\n"
+                f"{ai_question}"
+            )
+        else:
+            question_for_planning = ai_question
+
+        try:
+            with st.spinner("A kérdés értelmezése..."):
+                question_plan = plan_question(
+                    question_for_planning,
+                    st.secrets["GEMINI_API_KEY"]
+                )
+
+            if question_plan.status == "answerable":
+                st.session_state.pending_ai_question = None
+                st.success(
+                    "A kérdés megválaszolható "
+                    "a rendelkezésre álló adatokból."
+                )
+
+            elif (
+                question_plan.status
+                == "clarification_needed"
+            ):
+                st.session_state.pending_ai_question = (
+                    question_for_planning
+                )
+                st.info(
+                    question_plan.clarification_question
+                )
+
+            else:
+                st.session_state.pending_ai_question = None
+                st.warning(question_plan.reason)
+
+            with st.expander("Értelmezési részletek"):
+                st.json(question_plan.model_dump())
+
+        except Exception as exc:
+            st.error(
+                "Az AI-szolgáltatás átmenetileg "
+                f"nem érhető el: {exc}"
+            )
