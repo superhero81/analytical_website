@@ -3,7 +3,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 import altair as alt
-import yaml
+from catalog_service import get_metric, load_catalogs
+
 
 
 st.set_page_config(
@@ -146,25 +147,8 @@ st.markdown(
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_FOLDER = BASE_DIR / "data" / "processed"
-CONFIG_FOLDER = BASE_DIR / "config"
 
 
-@st.cache_data
-def load_catalogs():
-    catalogs = {}
-
-    for path in sorted(CONFIG_FOLDER.glob("*.yaml")):
-        with path.open(encoding="utf-8") as file:
-            content = yaml.safe_load(file)
-
-        if not isinstance(content, dict):
-            raise ValueError(
-                f"Hibás katalógusszerkezet: {path.name}"
-            )
-
-        catalogs[path.stem] = content
-
-    return catalogs
 
 @st.cache_data
 def load_data():
@@ -208,19 +192,6 @@ def load_data():
 
 catalogs = load_catalogs()
 
-metric_definitions = {
-    metric["name"]: metric
-    for metric in catalogs["metrics"]["metrics"]
-}
-
-
-def get_metric_definition(metric_name):
-    if metric_name not in metric_definitions:
-        raise KeyError(
-            f"Ismeretlen metrika: {metric_name}"
-        )
-
-    return metric_definitions[metric_name]
 
 employees, engagement, training = load_data()
 
@@ -528,7 +499,7 @@ def show_kpi_card(
     value,
     detail
 ):
-    metric = get_metric_definition(metric_name)
+    metric = get_metric(metric_name)
     is_selected = (
         st.session_state.selected_kpi == key
     )
