@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from catalog_service import (
     get_metric_registry,
     get_routing_registry,
+    load_catalogs,
 )
 from datetime import date
 
@@ -18,6 +19,16 @@ MODEL_NAMES = (
     "gemini-3.5-flash",
     "gemini-2.5-flash",
 )
+
+
+class QuestionFilter(BaseModel):
+    field: Literal[
+        "DepartmentType",
+        "Generation",
+        "AgeGroup",
+    ]
+    value: str
+
 
 class QuestionPlan(BaseModel):
     status: Literal[
@@ -31,6 +42,9 @@ class QuestionPlan(BaseModel):
     )
     start_date: date | None = None
     end_date: date | None = None
+    filters: list[QuestionFilter] = Field(
+        default_factory=list
+    )
     clarification_question: str | None = None
     reason: str
 
@@ -38,6 +52,28 @@ class QuestionPlan(BaseModel):
 def build_routing_context():
     routes = get_routing_registry()
     metrics = get_metric_registry()
+    catalogs = load_catalogs()
+    employee_fields = catalogs["employee"]["fields"]
+    department_field = next(
+        field
+        for field in employee_fields
+        if field["name"] == "DepartmentType"
+    )
+    derived_dimensions = catalogs["employee"].get(
+        "derived_dimensions",
+        []
+    )
+    demographic_filters = {
+        dimension["name"]: [
+            category["label"]
+            for category in dimension["categories"]
+        ]
+        for dimension in derived_dimensions
+        if dimension["name"] in {
+            "Generation",
+            "AgeGroup",
+        }
+    }
 
     return {
         "official_cutoff_date": "2026-06-30",
@@ -53,6 +89,12 @@ def build_routing_context():
             }
             for metric in metrics.values()
         ],
+        "filter_dimensions": {
+            "DepartmentType": department_field[
+                "allowed_values"
+            ],
+            **demographic_filters,
+        },
     }
 
 
@@ -77,6 +119,12 @@ Szabályok:
 - Az explicit időszakot start_date és end_date mezőkkel add meg,
   ISO YYYY-MM-DD formátumban.
 - Egy konkrét napnál a start_date és end_date legyen azonos.
+- A kérdésben megadott szervezeti vagy demográfiai szűréseket a filters
+  listában add vissza.
+- Csak a filter_dimensions alatt felsorolt mezők és pontos kategóriaértékek
+  használhatók.
+- Egy mezőhöz több kért kategória esetén külön listaelemeket adj vissza.
+- Ha nincs szűrés a kérdésben, a filters lista legyen üres.
 - A „2026 első féléve” időszaka 2026-01-01–2026-06-30.
 - Hiányzó időszakot csak a katalógus kifejezett
   alapértelmezési szabálya alapján tölts ki.

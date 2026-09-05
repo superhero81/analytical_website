@@ -198,6 +198,10 @@ catalogs = load_catalogs()
 
 employees, engagement, training = load_data()
 
+all_employees = employees.copy()
+all_engagement = engagement.copy()
+all_training = training.copy()
+
 first_month = employees["StartDate"].min().to_period("M")
 last_complete_month = pd.Period("2026-06", freq="M")
 
@@ -1226,6 +1230,99 @@ elif st.session_state.selected_kpi == "training":
     )
 
 
+def add_demographic_dimensions(employee_data, filter_date):
+    result = employee_data.copy()
+    birth_date = pd.to_datetime(
+        result["DOB"],
+        errors="coerce",
+        format="mixed"
+    )
+    birth_year = birth_date.dt.year
+
+    result["Generation"] = pd.cut(
+        birth_year,
+        bins=[0, 1945, 1964, 1980, 1996, 2012],
+        labels=[
+            "Silent Generation (1945 vagy korábban)",
+            "Baby Boomer (1946–1964)",
+            "Generation X (1965–1980)",
+            "Millennial (1981–1996)",
+            "Generation Z (1997–2012)",
+        ]
+    ).astype("string")
+
+    filter_date = pd.Timestamp(filter_date)
+    age = (
+        filter_date.year
+        - birth_date.dt.year
+        - (
+            (birth_date.dt.month > filter_date.month)
+            | (
+                (birth_date.dt.month == filter_date.month)
+                & (birth_date.dt.day > filter_date.day)
+            )
+        ).astype("Int64")
+    )
+
+    result["AgeGroup"] = pd.cut(
+        age,
+        bins=[-1, 29, 44, 59, float("inf")],
+        labels=[
+            "29 éves vagy fiatalabb",
+            "30–44 éves",
+            "45–59 éves",
+            "60 éves vagy idősebb",
+        ]
+    ).astype("string")
+
+    return result
+
+
+def apply_question_filters(
+    employee_data,
+    engagement_data,
+    training_data,
+    question_filters,
+    filter_date
+):
+    filtered_employees = add_demographic_dimensions(
+        employee_data,
+        filter_date
+    )
+
+    filters_by_field = {}
+    for question_filter in question_filters:
+        filters_by_field.setdefault(
+            question_filter.field,
+            []
+        ).append(question_filter.value)
+
+    for field, values in filters_by_field.items():
+        filtered_employees = filtered_employees[
+            filtered_employees[field].isin(values)
+        ]
+
+    employee_ids = set(filtered_employees["EmpID"])
+    filtered_engagement = engagement_data[
+        engagement_data["EmpID"].isin(employee_ids)
+    ].copy()
+    filtered_training = training_data[
+        training_data["EmpID"].isin(employee_ids)
+    ].copy()
+
+    filter_label = ", ".join(
+        f"{field}: {' / '.join(values)}"
+        for field, values in filters_by_field.items()
+    )
+
+    return (
+        filtered_employees,
+        filtered_engagement,
+        filtered_training,
+        filter_label,
+    )
+
+
 st.divider()
 st.header("Kérdezd a HR-adatokat")
 
@@ -1300,6 +1397,31 @@ if st.button(
                     )
 
                 else:
+                    if question_plan.filters:
+                        ai_filter_date = (
+                            question_plan.end_date
+                            or reference_date
+                        )
+                        (
+                            analysis_employees,
+                            analysis_engagement,
+                            analysis_training,
+                            analysis_filter_label,
+                        ) = apply_question_filters(
+                            all_employees,
+                            all_engagement,
+                            all_training,
+                            question_plan.filters,
+                            ai_filter_date,
+                        )
+                    else:
+                        analysis_employees = employees
+                        analysis_engagement = engagement
+                        analysis_training = training
+                        analysis_filter_label = (
+                            selected_department
+                        )
+
                     unsupported_metrics = [
                         metric_name
                         for metric_name in question_plan.metric_names
@@ -1321,11 +1443,11 @@ if st.button(
 
                         metric_result = calculate_metric(
                             selected_metric,
-                            employees,
+                            analysis_employees,
                             question_plan.start_date,
                             question_plan.end_date,
-                            engagement=engagement,
-                            training=training
+                            engagement=analysis_engagement,
+                            training=analysis_training
                         )
                         metric_value = metric_result["value"]
                         metric_definition = get_metric(
@@ -1397,8 +1519,8 @@ if st.button(
                             f"Időszak: "
                             f"{metric_result['start_date']} – "
                             f"{metric_result['end_date']} · "
-                            f"Szervezeti terület: "
-                            f"{selected_department}"
+                            f"Szűrés: "
+                            f"{analysis_filter_label}"
                         )
 
             elif (
