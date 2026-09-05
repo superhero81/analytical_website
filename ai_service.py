@@ -15,6 +15,7 @@ from datetime import date
 MODEL_NAMES = (
     "gemini-3.7-flash",
     "gemini-3.6-flash",
+    "gemini-3.5-flash",
 )
 
 class QuestionPlan(BaseModel):
