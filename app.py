@@ -1310,23 +1310,37 @@ if st.button(
                             employees,
                             question_plan.start_date,
                             question_plan.end_date,
+                            engagement=engagement
                         )
-                        if selected_metric == "AverageHeadcount":
+                        if metric_result["unit"] == "százalék":
+                            formatted_value = (
+                                f"{metric_result['value']:.1f}"
+                                .replace(".", ",")
+                            )
+                            displayed_unit = "%"
+
+                        elif selected_metric in {
+                            "AverageHeadcount",
+                            "OpeningClosingAverageHeadcount",
+                        }:
                             formatted_value = (
                                 f"{metric_result['value']:,.1f}"
                                 .replace(",", " ")
                                 .replace(".", ",")
                             )
+                            displayed_unit = metric_result["unit"]
+
                         else:
                             formatted_value = (
-                                f"{metric_result['value']:,}"
+                                f"{metric_result['value']:,.0f}"
                                 .replace(",", " ")
                             )
+                            displayed_unit = metric_result["unit"]
 
                         st.success(
                             f"**{metric_result['label']}: "
                             f"{formatted_value} "
-                            f"{metric_result['unit']}**"
+                            f"{displayed_unit}**"
                         )
 
                         st.caption(

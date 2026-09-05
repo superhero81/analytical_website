@@ -7,6 +7,76 @@ SUPPORTED_METRICS = {
     "ClosingHeadcount",
     "OpeningHeadcount",
     "AverageHeadcount",
+    "OpeningClosingAverageHeadcount",
+    "HireCount",
+    "ExitCount",
+    "TotalTurnoverRate",
+    "VoluntaryTurnoverRate",
+    "InvoluntaryTurnoverRate",
+    "Rolling12MonthTurnoverRate",
+    "Rolling3MonthTurnoverRate",
+    "RetirementExitRate",
+    "AverageEngagementScore",
+    "AverageEngagementIndex",
+    "AverageSatisfactionScore",
+    "AverageSatisfactionIndex",
+    "AverageWorkLifeBalanceScore",
+    "AverageWorkLifeBalanceIndex",
+    "CompositeEngagementIndex",
+    "EngagementTop2BoxRate",
+    "EngagementLow2BoxRate",
+    "SatisfactionTop2BoxRate",
+    "SatisfactionLow2BoxRate",
+    "WorkLifeBalanceTop2BoxRate",
+    "WorkLifeBalanceLow2BoxRate",
+    "SurveyResponseRate",
+    "EngagementIndexChange",
+    "SatisfactionIndexChange",
+    "WorkLifeBalanceIndexChange",
+    "PooledAverageEngagementIndex",
+    "PooledAverageSatisfactionIndex",
+    "PooledAverageWorkLifeBalanceIndex",
+    "PooledCompositeEngagementIndex",
+}
+
+
+ENGAGEMENT_SCORE_FIELDS = {
+    "AverageEngagementScore": "EngagementScore",
+    "AverageSatisfactionScore": "SatisfactionScore",
+    "AverageWorkLifeBalanceScore": "WorkLifeBalanceScore",
+}
+
+ENGAGEMENT_INDEX_FIELDS = {
+    "AverageEngagementIndex": "EngagementScore",
+    "AverageSatisfactionIndex": "SatisfactionScore",
+    "AverageWorkLifeBalanceIndex": "WorkLifeBalanceScore",
+}
+
+ENGAGEMENT_BOX_METRICS = {
+    "EngagementTop2BoxRate": ("EngagementScore", {4, 5}),
+    "EngagementLow2BoxRate": ("EngagementScore", {1, 2}),
+    "SatisfactionTop2BoxRate": ("SatisfactionScore", {4, 5}),
+    "SatisfactionLow2BoxRate": ("SatisfactionScore", {1, 2}),
+    "WorkLifeBalanceTop2BoxRate": (
+        "WorkLifeBalanceScore",
+        {4, 5},
+    ),
+    "WorkLifeBalanceLow2BoxRate": (
+        "WorkLifeBalanceScore",
+        {1, 2},
+    ),
+}
+
+POOLED_INDEX_FIELDS = {
+    "PooledAverageEngagementIndex": "EngagementScore",
+    "PooledAverageSatisfactionIndex": "SatisfactionScore",
+    "PooledAverageWorkLifeBalanceIndex": "WorkLifeBalanceScore",
+}
+
+CHANGE_INDEX_FIELDS = {
+    "EngagementIndexChange": "EngagementScore",
+    "SatisfactionIndexChange": "SatisfactionScore",
+    "WorkLifeBalanceIndexChange": "WorkLifeBalanceScore",
 }
 
 
@@ -57,13 +127,280 @@ def average_headcount_between(
     )
 
 
+def hire_count(employees, start_date, end_date):
+    mask = (
+        (employees["StartDate"] >= start_date)
+        & (employees["StartDate"] <= end_date)
+    )
+
+    return employees.loc[
+        mask,
+        "EmpID"
+    ].nunique()
+
+
+def exit_count(
+    employees,
+    start_date,
+    end_date,
+    statuses=None
+):
+    mask = (
+        (employees["ExitDate"] >= start_date)
+        & (employees["ExitDate"] <= end_date)
+    )
+
+    if statuses is not None:
+        mask &= employees[
+            "EmployeeStatus"
+        ].isin(statuses)
+
+    return employees.loc[
+        mask,
+        "EmpID"
+    ].nunique()
+
+
+def turnover_rate(
+    employees,
+    start_date,
+    end_date,
+    statuses=None
+):
+    exits = exit_count(
+        employees,
+        start_date,
+        end_date,
+        statuses
+    )
+
+    average_headcount = average_headcount_between(
+        employees,
+        start_date,
+        end_date
+    )
+
+    if average_headcount == 0:
+        return 0
+
+    return exits / average_headcount * 100
+
+
+def _prepare_engagement(engagement):
+    if engagement is None:
+        raise ValueError(
+            "Az engagement-metrikához az engagement "
+            "adatállomány is szükséges."
+        )
+
+    data = engagement.copy()
+    data["SurveyLaunchDate"] = pd.to_datetime(
+        data["SurveyLaunchDate"]
+    )
+    return data
+
+
+def _waves_in_period(engagement, start_date, end_date):
+    data = _prepare_engagement(engagement)
+
+    if start_date is not None:
+        data = data[
+            data["SurveyLaunchDate"] >= start_date
+        ]
+
+    if end_date is not None:
+        data = data[
+            data["SurveyLaunchDate"] <= end_date
+        ]
+
+    return data
+
+
+def _single_wave(engagement, start_date, end_date):
+    data = _waves_in_period(
+        engagement,
+        start_date,
+        end_date
+    )
+
+    launch_dates = sorted(
+        data["SurveyLaunchDate"].dropna().unique()
+    )
+
+    if not launch_dates:
+        raise ValueError(
+            "A megadott időszakban nincs felmérési hullám."
+        )
+
+    if len(launch_dates) > 1:
+        raise ValueError(
+            "A megadott időszak több felmérési hullámot "
+            "tartalmaz. Válassz egy hullámot, vagy kérj "
+            "összevont mutatót."
+        )
+
+    launch_date = pd.Timestamp(launch_dates[0])
+    return (
+        data[data["SurveyLaunchDate"] == launch_date],
+        launch_date,
+    )
+
+
+def _latest_wave(engagement, end_date=None):
+    data = _prepare_engagement(engagement)
+
+    if end_date is not None:
+        data = data[
+            data["SurveyLaunchDate"] <= end_date
+        ]
+
+    if data.empty:
+        raise ValueError(
+            "A megadott időpontig nincs felmérési hullám."
+        )
+
+    launch_date = data["SurveyLaunchDate"].max()
+    return (
+        data[data["SurveyLaunchDate"] == launch_date],
+        launch_date,
+    )
+
+
+def _selected_wave(engagement, start_date, end_date):
+    if start_date is None:
+        return _latest_wave(engagement, end_date)
+
+    return _single_wave(
+        engagement,
+        start_date,
+        end_date
+    )
+
+
+def _valid_score_mean(data, field):
+    values = data[field].dropna()
+    if values.empty:
+        raise ValueError(
+            f"Nincs érvényes {field} érték."
+        )
+    return values.mean(), len(values)
+
+
+def _score_to_index(score):
+    return (score - 1) * 25
+
+
+def _box_rate(data, field, accepted_values):
+    values = data[field].dropna()
+    if values.empty:
+        raise ValueError(
+            f"Nincs érvényes {field} érték."
+        )
+    return values.isin(accepted_values).mean() * 100, len(values)
+
+
+def _change_between_waves(
+    engagement,
+    field,
+    start_date,
+    end_date
+):
+    all_data = _prepare_engagement(engagement)
+    selected = _waves_in_period(
+        engagement,
+        start_date,
+        end_date
+    )
+    selected_dates = sorted(
+        selected["SurveyLaunchDate"].dropna().unique()
+    )
+
+    if not selected_dates:
+        raise ValueError(
+            "A megadott időszakban nincs felmérési hullám."
+        )
+
+    later_date = pd.Timestamp(selected_dates[-1])
+
+    if len(selected_dates) >= 2:
+        earlier_date = pd.Timestamp(selected_dates[0])
+    else:
+        previous_dates = all_data.loc[
+            all_data["SurveyLaunchDate"] < later_date,
+            "SurveyLaunchDate",
+        ]
+        if previous_dates.empty:
+            raise ValueError(
+                "A kiválasztott hullám előtt nincs "
+                "összehasonlítható felmérési hullám."
+            )
+        earlier_date = previous_dates.max()
+
+    earlier = all_data[
+        all_data["SurveyLaunchDate"] == earlier_date
+    ]
+    later = all_data[
+        all_data["SurveyLaunchDate"] == later_date
+    ]
+    earlier_mean, earlier_count = _valid_score_mean(
+        earlier,
+        field
+    )
+    later_mean, later_count = _valid_score_mean(
+        later,
+        field
+    )
+
+    return {
+        "value": _score_to_index(later_mean)
+        - _score_to_index(earlier_mean),
+        "comparison_start_date": earlier_date,
+        "comparison_end_date": later_date,
+        "comparison_start_count": earlier_count,
+        "comparison_end_count": later_count,
+    }
+
+
 def calculate_metric(
     metric_name,
     employees,
     start_date=None,
-    end_date=None
+    end_date=None,
+    engagement=None
 ):
     metric = get_metric(metric_name)
+
+    if end_date is not None:
+        end_date = pd.Timestamp(end_date)
+
+    if start_date is not None:
+        start_date = pd.Timestamp(start_date)
+
+    if metric_name == "Rolling12MonthTurnoverRate":
+        if end_date is None:
+            raise ValueError(
+                "A gördülő fluktuációhoz "
+                "záródátum szükséges."
+            )
+
+        start_date = (
+            end_date
+            - pd.DateOffset(years=1)
+            + pd.Timedelta(days=1)
+        )
+
+    elif metric_name == "Rolling3MonthTurnoverRate":
+        if end_date is None:
+            raise ValueError(
+                "A gördülő fluktuációhoz "
+                "záródátum szükséges."
+            )
+
+        start_date = (
+            end_date
+            - pd.DateOffset(months=3)
+            + pd.Timedelta(days=1)
+        )
 
     if metric_name == "ClosingHeadcount":
         if end_date is None:
@@ -100,21 +437,293 @@ def calculate_metric(
             end_date
         )
 
+    elif metric_name == "OpeningClosingAverageHeadcount":
+        if start_date is None or end_date is None:
+            raise ValueError(
+                "A mutatóhoz kezdő- és "
+                "záródátum szükséges."
+            )
+
+        value = (
+            headcount_on_date(employees, start_date)
+            + headcount_on_date(employees, end_date)
+        ) / 2
+
+    elif metric_name == "HireCount":
+        if start_date is None or end_date is None:
+            raise ValueError(
+                "A belépők számához időszak szükséges."
+            )
+
+        value = hire_count(
+            employees,
+            start_date,
+            end_date
+        )
+
+    elif metric_name == "ExitCount":
+        if start_date is None or end_date is None:
+            raise ValueError(
+                "A kilépők számához időszak szükséges."
+            )
+
+        value = exit_count(
+            employees,
+            start_date,
+            end_date
+        )
+
+    elif metric_name in {
+        "TotalTurnoverRate",
+        "Rolling12MonthTurnoverRate",
+        "Rolling3MonthTurnoverRate",
+    }:
+        if start_date is None or end_date is None:
+            raise ValueError(
+                "A fluktuációhoz időszak szükséges."
+            )
+
+        value = turnover_rate(
+            employees,
+            start_date,
+            end_date
+        )
+
+    elif metric_name == "VoluntaryTurnoverRate":
+        if start_date is None or end_date is None:
+            raise ValueError(
+                "A fluktuációhoz időszak szükséges."
+            )
+
+        value = turnover_rate(
+            employees,
+            start_date,
+            end_date,
+            statuses=["Voluntarily Terminated"]
+        )
+
+    elif metric_name == "InvoluntaryTurnoverRate":
+        if start_date is None or end_date is None:
+            raise ValueError(
+                "A fluktuációhoz időszak szükséges."
+            )
+
+        value = turnover_rate(
+            employees,
+            start_date,
+            end_date,
+            statuses=["Terminated for Cause"]
+        )
+
+    elif metric_name == "RetirementExitRate":
+        if start_date is None or end_date is None:
+            raise ValueError(
+                "A nyugdíjazási kilépési rátához "
+                "időszak szükséges."
+            )
+
+        value = turnover_rate(
+            employees,
+            start_date,
+            end_date,
+            statuses=["Retired"]
+        )
+
+    elif metric_name in ENGAGEMENT_SCORE_FIELDS:
+        wave, launch_date = _selected_wave(
+            engagement,
+            start_date,
+            end_date
+        )
+        value, valid_response_count = _valid_score_mean(
+            wave,
+            ENGAGEMENT_SCORE_FIELDS[metric_name]
+        )
+        wave_id = wave["SurveyWaveID"].iloc[0]
+
+    elif metric_name in ENGAGEMENT_INDEX_FIELDS:
+        wave, launch_date = _selected_wave(
+            engagement,
+            start_date,
+            end_date
+        )
+        score, valid_response_count = _valid_score_mean(
+            wave,
+            ENGAGEMENT_INDEX_FIELDS[metric_name]
+        )
+        value = _score_to_index(score)
+        wave_id = wave["SurveyWaveID"].iloc[0]
+
+    elif metric_name == "CompositeEngagementIndex":
+        wave, launch_date = _selected_wave(
+            engagement,
+            start_date,
+            end_date
+        )
+        fields = [
+            "EngagementScore",
+            "SatisfactionScore",
+            "WorkLifeBalanceScore",
+        ]
+        complete = wave[fields].dropna()
+        if complete.empty:
+            raise ValueError(
+                "Nincs mindhárom pontszámot tartalmazó válasz."
+            )
+        value = (
+            complete.apply(_score_to_index).mean(axis=1).mean()
+        )
+        valid_response_count = len(complete)
+        wave_id = wave["SurveyWaveID"].iloc[0]
+
+    elif metric_name in ENGAGEMENT_BOX_METRICS:
+        wave, launch_date = _selected_wave(
+            engagement,
+            start_date,
+            end_date
+        )
+        field, accepted_values = ENGAGEMENT_BOX_METRICS[
+            metric_name
+        ]
+        value, valid_response_count = _box_rate(
+            wave,
+            field,
+            accepted_values
+        )
+        wave_id = wave["SurveyWaveID"].iloc[0]
+
+    elif metric_name == "SurveyResponseRate":
+        wave, launch_date = _selected_wave(
+            engagement,
+            start_date,
+            end_date
+        )
+        respondent_count = wave["EmpID"].nunique()
+        eligible_count = headcount_on_date(
+            employees,
+            launch_date
+        )
+        value = (
+            respondent_count / eligible_count * 100
+            if eligible_count > 0
+            else 0
+        )
+        valid_response_count = respondent_count
+        wave_id = wave["SurveyWaveID"].iloc[0]
+
+    elif metric_name in CHANGE_INDEX_FIELDS:
+        change = _change_between_waves(
+            engagement,
+            CHANGE_INDEX_FIELDS[metric_name],
+            start_date,
+            end_date
+        )
+        value = change["value"]
+
+    elif metric_name in POOLED_INDEX_FIELDS:
+        pooled = _waves_in_period(
+            engagement,
+            start_date,
+            end_date
+        )
+        if pooled.empty:
+            raise ValueError(
+                "A megadott időszakban nincs felmérési adat."
+            )
+        score, valid_response_count = _valid_score_mean(
+            pooled,
+            POOLED_INDEX_FIELDS[metric_name]
+        )
+        value = _score_to_index(score)
+        unique_employee_count = pooled["EmpID"].nunique()
+        wave_count = pooled["SurveyWaveID"].nunique()
+
+    elif metric_name == "PooledCompositeEngagementIndex":
+        pooled = _waves_in_period(
+            engagement,
+            start_date,
+            end_date
+        )
+        fields = [
+            "EngagementScore",
+            "SatisfactionScore",
+            "WorkLifeBalanceScore",
+        ]
+        complete = pooled[fields].dropna()
+        if complete.empty:
+            raise ValueError(
+                "Nincs mindhárom pontszámot tartalmazó válasz."
+            )
+        value = (
+            complete.apply(_score_to_index).mean(axis=1).mean()
+        )
+        valid_response_count = len(complete)
+        unique_employee_count = pooled.loc[
+            complete.index,
+            "EmpID",
+        ].nunique()
+        wave_count = pooled.loc[
+            complete.index,
+            "SurveyWaveID",
+        ].nunique()
+
     else:
         raise NotImplementedError(
             f"A metrika számítása még nincs "
             f"implementálva: {metric_name}"
         )
 
-    return {
+    result = {
         "metric_name": metric_name,
         "label": metric["label"],
         "value": value,
         "unit": metric["unit"],
         "start_date": (
-            str(start_date) if start_date else None
+            start_date.date().isoformat()
+            if start_date is not None
+            else None
         ),
         "end_date": (
-            str(end_date) if end_date else None
+            end_date.date().isoformat()
+            if end_date is not None
+            else None
         ),
     }
+
+    if "wave_id" in locals():
+        result["wave_id"] = wave_id
+        result["survey_launch_date"] = (
+            launch_date.date().isoformat()
+        )
+
+    if "valid_response_count" in locals():
+        result["valid_response_count"] = int(
+            valid_response_count
+        )
+
+    if "unique_employee_count" in locals():
+        result["unique_employee_count"] = int(
+            unique_employee_count
+        )
+
+    if "wave_count" in locals():
+        result["wave_count"] = int(wave_count)
+
+    if "change" in locals():
+        result.update({
+            "comparison_start_date": change[
+                "comparison_start_date"
+            ].date().isoformat(),
+            "comparison_end_date": change[
+                "comparison_end_date"
+            ].date().isoformat(),
+            "comparison_start_count": change[
+                "comparison_start_count"
+            ],
+            "comparison_end_count": change[
+                "comparison_end_count"
+            ],
+        })
+
+    return result
+
