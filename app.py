@@ -1300,11 +1300,25 @@ if st.button(
                     )
 
                 else:
-                    selected_metric = (
-                        question_plan.metric_names[0]
-                    )
+                    unsupported_metrics = [
+                        metric_name
+                        for metric_name in question_plan.metric_names
+                        if metric_name not in SUPPORTED_METRICS
+                    ]
 
-                    if selected_metric in SUPPORTED_METRICS:
+                    if unsupported_metrics:
+                        st.info(
+                            "A következő mutatók számítása még "
+                            "nincs bekötve: "
+                            + ", ".join(unsupported_metrics)
+                        )
+
+                    for selected_metric in (
+                        question_plan.metric_names
+                    ):
+                        if selected_metric not in SUPPORTED_METRICS:
+                            continue
+
                         metric_result = calculate_metric(
                             selected_metric,
                             employees,
@@ -1385,13 +1399,6 @@ if st.button(
                             f"{metric_result['end_date']} · "
                             f"Szervezeti terület: "
                             f"{selected_department}"
-                        )
-
-                    else:
-                        st.info(
-                            "A kérdést az AI helyesen értelmezte, "
-                            "de ennek a mutatónak a számítása "
-                            "még nincs bekötve."
                         )
 
             elif (
