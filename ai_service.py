@@ -38,6 +38,20 @@ class QuestionGrouping(BaseModel):
     values: list[str] = Field(default_factory=list)
 
 
+class ComparisonGroup(BaseModel):
+    kind: Literal[
+        "all_employees",
+        "voluntary_exit_within_months_after_survey",
+        "no_voluntary_exit_within_months_after_survey",
+    ]
+    label: str
+    exit_window_months: int | None = Field(
+        default=None,
+        ge=1,
+        le=60,
+    )
+
+
 class QuestionPlan(BaseModel):
     status: Literal[
         "answerable",
@@ -56,12 +70,20 @@ class QuestionPlan(BaseModel):
     groupings: list[QuestionGrouping] = Field(
         default_factory=list
     )
+    comparison_groups: list[ComparisonGroup] = Field(
+        default_factory=list
+    )
     output_type: Literal[
         "single_value",
         "comparison",
         "time_series",
         "grouped_table",
     ] = "single_value"
+    chart_layout: Literal[
+        "automatic",
+        "combined",
+        "separate",
+    ] = "automatic"
     clarification_question: str | None = None
     reason: str
 
@@ -150,12 +172,30 @@ Szabályok:
   a kiválasztott pontos kategóriaértékek kerüljenek a grouping values listájába.
 - Ha egy dimenzió minden kategóriáját kéri, a values lista legyen üres.
 - Az összehasonlítandó kategóriákat ne vond össze egyetlen filters szűrésbe.
+- A teljes vállalat és egy felmérés után meghatározott időn belül önkéntesen
+  kilépők összehasonlítását a comparison_groups listában add vissza.
+- A teljes vállalat kind értéke all_employees legyen.
+- A felmérés után önkéntesen kilépők kind értéke
+  voluntary_exit_within_months_after_survey legyen, az időtávot pedig az
+  exit_window_months mező tartalmazza.
+- Az ugyanazon időtávon belül nem felmondók kind értéke
+  no_voluntary_exit_within_months_after_survey legyen, ugyanazzal az
+  exit_window_months értékkel.
+- A „felmondók és nem felmondók” összehasonlításánál ne használd az
+  all_employees csoportot: a két egymást kizáró kimeneti csoportot add vissza.
+- A „felmondott” vagy „felmondók” önkéntes kilépést jelent, nem minden kilépést.
+- Ha a kilépés utáni követési időtáv hiányzik, kérj pontosítást.
+- Ha nincs ilyen kimeneti csoport-összehasonlítás, a comparison_groups legyen üres.
 - Ha a kérdés időbeli alakulásra, trendre vagy teljes idősorra kérdez,
   az output_type legyen time_series.
 - Ha csak két időpont vagy időszak különbségét kéri, az output_type
   legyen comparison.
 - Ha bontást vagy rangsort kér, az output_type legyen grouped_table.
 - Egyetlen összesített eredménynél az output_type legyen single_value.
+- Több, azonos időtengelyen értelmezhető mutató esetén a chart_layout legyen
+  combined, ha a felhasználó egy közös ábrát kér. Máskor automatic.
+- A chart_layout csak a megjelenítést szabályozza; emiatt mutatót vagy csoportot
+  ne hagyj ki a tervből.
 - A „2026 első féléve” időszaka 2026-01-01–2026-06-30.
 - Hiányzó időszakot csak a katalógus kifejezett
   alapértelmezési szabálya alapján tölts ki.

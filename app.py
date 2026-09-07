@@ -1,4 +1,6 @@
 from pathlib import Path
+import html
+import textwrap
 
 import pandas as pd
 import streamlit as st
@@ -1324,6 +1326,354 @@ def apply_question_filters(
     )
 
 
+def _axis_key(unit):
+    if "0–100" in unit:
+        return "0–100-as skála"
+    if unit == "százalék":
+        return "százalék"
+    if "1–5" in unit:
+        return "1–5-ös skála"
+    return unit
+
+
+def _wrap_legend_label(value, width=24):
+    return "\n".join(
+        textwrap.wrap(
+            str(value),
+            width=width,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+    )
+
+
+def build_combined_engagement_time_series(
+    question_plan,
+    employee_data,
+    engagement_data,
+    filter_label,
+):
+    grouping_specs = [(filter_label, employee_data)]
+
+    if question_plan.groupings:
+        grouping = question_plan.groupings[0]
+        dimensioned = add_demographic_dimensions(
+            employee_data,
+            question_plan.end_date,
+        )
+        values = sorted(
+            dimensioned[grouping.field].dropna().unique()
+        )
+        if grouping.values:
+            values = [
+                value for value in values
+                if value in grouping.values
+            ]
+        grouping_specs = [
+            (
+                value,
+                dimensioned[
+                    dimensioned[grouping.field] == value
+                ],
+            )
+            for value in values
+        ]
+
+    explicit_comparison = bool(
+        question_plan.comparison_groups
+    )
+    comparison_groups = [
+        group.model_dump()
+        for group in question_plan.comparison_groups
+    ] or [{
+        "kind": "all_employees",
+        "label": None,
+        "exit_window_months": None,
+    }]
+
+    records = []
+    for group_label, group_employees in grouping_specs:
+        group_ids = set(group_employees["EmpID"])
+        group_engagement = engagement_data[
+            engagement_data["EmpID"].isin(group_ids)
+        ]
+
+        for comparison_group in comparison_groups:
+            comparison_label = comparison_group.get("label")
+            if (
+                explicit_comparison
+                and comparison_group["kind"] == "all_employees"
+            ):
+                comparison_label = "Teljes vállalat"
+            elif explicit_comparison and comparison_group["kind"] == (
+                "voluntary_exit_within_months_after_survey"
+            ):
+                months = comparison_group["exit_window_months"]
+                comparison_label = (
+                    "1 éven belül felmondók"
+                    if months == 12
+                    else f"{months} hónapon belül felmondók"
+                )
+            elif explicit_comparison and comparison_group["kind"] == (
+                "no_voluntary_exit_within_months_after_survey"
+            ):
+                months = comparison_group["exit_window_months"]
+                comparison_label = (
+                    "1 éven belül nem felmondók"
+                    if months == 12
+                    else f"{months} hónapon belül nem felmondók"
+                )
+            display_group = group_label
+            if comparison_label:
+                display_group = (
+                    comparison_label
+                    if not question_plan.groupings
+                    else f"{group_label} – {comparison_label}"
+                )
+
+            for metric_name in question_plan.metric_names:
+                if metric_name not in SUPPORTED_METRICS:
+                    continue
+                try:
+                    result = calculate_engagement_time_series(
+                        metric_name,
+                        group_employees,
+                        group_engagement,
+                        question_plan.start_date,
+                        question_plan.end_date,
+                        comparison_group=comparison_group,
+                    )
+                except ValueError:
+                    continue
+
+                for record in result["records"]:
+                    sample_size = record.get("RespondentCount")
+                    if sample_size is not None and sample_size < 4:
+                        continue
+                    metric_short = {
+                        "AverageEngagementIndex": "Elkötelezettség",
+                        "AverageSatisfactionIndex": "Elégedettség",
+                        "AverageWorkLifeBalanceIndex": (
+                            "Work–life balance"
+                        ),
+                        "SurveyResponseRate": "Válaszadási arány",
+                        "SatisfactionLow2BoxRate": (
+                            "Elégedettség Low2Box"
+                        ),
+                    }.get(result["metric_name"], result["label"])
+                    records.append({
+                        **record,
+                        "Metric": result["label"],
+                        "MetricShort": metric_short,
+                        "MetricLegend": _wrap_legend_label(
+                            metric_short
+                        ),
+                        "MetricName": result["metric_name"],
+                        "Unit": result["unit"],
+                        "Axis": _axis_key(result["unit"]),
+                        "Group": display_group,
+                        "GroupLegend": _wrap_legend_label(
+                            display_group
+                        ),
+                        "Series": (
+                            f"{result['label']} – {display_group}"
+                        ),
+                    })
+
+    if not records:
+        raise ValueError(
+            "Nincs megjeleníthető, legalább 4 választ "
+            "tartalmazó idősoros eredmény."
+        )
+    return pd.DataFrame(records)
+
+
+def _time_series_layer(
+    data,
+    axis_name,
+    metric_domain,
+    dash_range,
+    group_domain,
+    group_range,
+    orient="left",
+):
+    axis_data = data[data["Axis"] == axis_name]
+    domain = None
+    if axis_name == "0–100-as skála":
+        domain = [0, 100]
+    elif axis_name == "százalék":
+        domain = [0, 100]
+    elif axis_name == "1–5-ös skála":
+        domain = [1, 5]
+
+    return (
+        alt.Chart(axis_data)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(
+                "SurveyWaveID:N",
+                title="Felmérési hullám",
+                axis=alt.Axis(labelAngle=-45),
+                sort=alt.SortField(
+                    field="SurveyLaunchDate",
+                    order="ascending",
+                ),
+            ),
+            y=alt.Y(
+                "Value:Q",
+                title=axis_name,
+                scale=alt.Scale(domain=domain, zero=False),
+                axis=alt.Axis(orient=orient),
+            ),
+            color=alt.Color(
+                "Group:N",
+                scale=alt.Scale(
+                    domain=group_domain,
+                    range=group_range,
+                ),
+                legend=None,
+            ),
+            strokeDash=alt.StrokeDash(
+                "MetricShort:N",
+                scale=alt.Scale(
+                    domain=metric_domain,
+                    range=dash_range,
+                ),
+                legend=None,
+            ),
+            tooltip=[
+                alt.Tooltip("SurveyWaveID:N", title="Hullám"),
+                alt.Tooltip("Metric:N", title="Mutató"),
+                alt.Tooltip("Group:N", title="Csoport"),
+                alt.Tooltip(
+                    "Value:Q", title="Érték", format=".1f"
+                ),
+                alt.Tooltip(
+                    "RespondentCount:Q",
+                    title="Érvényes válaszok",
+                    format=",.0f",
+                ),
+            ],
+        )
+        .properties(height=380)
+    )
+
+
+def render_combined_time_series(data, chart_layout):
+    axes = list(data["Axis"].drop_duplicates())
+    series_count = data["Series"].nunique()
+    metric_domain = list(data["MetricShort"].drop_duplicates())
+    group_domain = list(data["Group"].drop_duplicates())
+    color_palette = [
+        "#0068C9",
+        "#83C9FF",
+        "#FF2B2B",
+        "#FFABAB",
+        "#29B09D",
+        "#7DE3D1",
+        "#6D3FC0",
+        "#B8A1E3",
+    ]
+    group_range = [
+        color_palette[index % len(color_palette)]
+        for index in range(len(group_domain))
+    ]
+    available_dash_ranges = [
+        [1, 0],
+        [7, 4],
+        [2, 3],
+        [10, 3, 2, 3],
+        [12, 4],
+    ]
+    dash_range = [
+        available_dash_ranges[
+            index % len(available_dash_ranges)
+        ]
+        for index in range(len(metric_domain))
+    ]
+    legend_symbols = [
+        "━━━━",
+        "┄ ┄ ┄",
+        "· · · ·",
+        "━ · ━ ·",
+        "━━  ━━",
+    ]
+
+    def show_custom_legend():
+        st.markdown("**Csoport**")
+        for label, color in zip(group_domain, group_range):
+            safe_label = html.escape(str(label))
+            st.markdown(
+                f'<span style="color:{color};font-size:1.2rem">'
+                f'●</span>&nbsp; {safe_label}',
+                unsafe_allow_html=True,
+            )
+        st.markdown("**Mutató**")
+        for index, label in enumerate(metric_domain):
+            symbol = legend_symbols[
+                index % len(legend_symbols)
+            ]
+            st.markdown(
+                f"{symbol}&nbsp; {html.escape(str(label))}",
+                unsafe_allow_html=True,
+            )
+
+    separate = (
+        chart_layout == "separate"
+        or len(axes) > 2
+        or series_count > 8
+    )
+    if separate:
+        chart_column, legend_column = st.columns([5, 1.15])
+        with chart_column:
+            for metric_label in data["Metric"].drop_duplicates():
+                metric_data = data[data["Metric"] == metric_label]
+                axis_name = metric_data["Axis"].iloc[0]
+                st.markdown(f"**{metric_label}**")
+                st.altair_chart(
+                    _time_series_layer(
+                        metric_data,
+                        axis_name,
+                        metric_domain,
+                        dash_range,
+                        group_domain,
+                        group_range,
+                    ),
+                    width="stretch",
+                )
+        with legend_column:
+            show_custom_legend()
+        return
+
+    chart = _time_series_layer(
+        data,
+        axes[0],
+        metric_domain,
+        dash_range,
+        group_domain,
+        group_range,
+    )
+    if len(axes) == 2:
+        chart = alt.layer(
+            chart,
+            _time_series_layer(
+                data,
+                axes[1],
+                metric_domain,
+                dash_range,
+                group_domain,
+                group_range,
+                orient="right",
+            ),
+        ).resolve_scale(y="independent")
+
+    chart_column, legend_column = st.columns([5, 1.15])
+    with chart_column:
+        st.altair_chart(chart, width="stretch")
+    with legend_column:
+        show_custom_legend()
+
+
 st.divider()
 st.header("Kérdezd a HR-adatokat")
 
@@ -1425,12 +1775,10 @@ if st.button(
                             ai_filter_date,
                         )
                     else:
-                        analysis_employees = employees
-                        analysis_engagement = engagement
-                        analysis_training = training
-                        analysis_filter_label = (
-                            selected_department
-                        )
+                        analysis_employees = all_employees
+                        analysis_engagement = all_engagement
+                        analysis_training = all_training
+                        analysis_filter_label = "Teljes vállalat"
 
                     unsupported_metrics = [
                         metric_name
@@ -1446,11 +1794,61 @@ if st.button(
                         )
 
                     interpretation_payload = []
+                    combined_time_series_rendered = False
 
                     for selected_metric in (
                         question_plan.metric_names
                     ):
                         if selected_metric not in SUPPORTED_METRICS:
+                            continue
+
+                        if question_plan.output_type == "time_series":
+                            if combined_time_series_rendered:
+                                continue
+
+                            time_series_data = (
+                                build_combined_engagement_time_series(
+                                    question_plan,
+                                    analysis_employees,
+                                    analysis_engagement,
+                                    analysis_filter_label,
+                                )
+                            )
+                            combined_time_series_rendered = True
+
+                            st.success(
+                                "**A kért mutatók időbeli alakulása**"
+                            )
+                            render_combined_time_series(
+                                time_series_data,
+                                question_plan.chart_layout,
+                            )
+                            with st.expander("Idősoros adatok"):
+                                st.dataframe(
+                                    time_series_data[[
+                                        "SurveyWaveID",
+                                        "Metric",
+                                        "Group",
+                                        "Value",
+                                        "Unit",
+                                        "RespondentCount",
+                                    ]],
+                                    hide_index=True,
+                                    use_container_width=True,
+                                )
+                            st.caption(
+                                "Az 1–3 érvényes választ tartalmazó "
+                                "csoportpontok nem jelennek meg. A "
+                                "kilépői csoportoknál csak a teljes "
+                                "követési idővel rendelkező hullámok "
+                                "szerepelnek."
+                            )
+                            interpretation_payload.append({
+                                "type": "combined_time_series",
+                                "data": time_series_data.to_dict(
+                                    orient="records"
+                                ),
+                            })
                             continue
 
                         if question_plan.output_type == "time_series":

@@ -1108,7 +1108,9 @@ def calculate_engagement_time_series(
     employees,
     engagement,
     start_date,
-    end_date
+    end_date,
+    comparison_group=None,
+    observation_end_date="2026-06-30",
 ):
     metric_mapping = {
         "EngagementIndexChange": "AverageEngagementIndex",
@@ -1151,12 +1153,77 @@ def calculate_engagement_time_series(
     records = []
     for wave_date in wave_dates:
         wave_date = pd.Timestamp(wave_date)
+
+        wave_employees = employees
+        wave_engagement = engagement
+        group_kind = (
+            comparison_group.get("kind")
+            if comparison_group
+            else "all_employees"
+        )
+
+        outcome_group_kinds = {
+            "voluntary_exit_within_months_after_survey",
+            "no_voluntary_exit_within_months_after_survey",
+        }
+        if group_kind in outcome_group_kinds:
+            exit_window_months = comparison_group.get(
+                "exit_window_months"
+            )
+            if not exit_window_months:
+                raise ValueError(
+                    "A kilépői csoporthoz meg kell adni a "
+                    "követési időt hónapokban."
+                )
+
+            follow_up_end = wave_date + pd.DateOffset(
+                months=exit_window_months
+            )
+            if follow_up_end > pd.Timestamp(observation_end_date):
+                # A teljes követési idő még nem figyelhető meg, ezért
+                # a hullámot nem hasonlítjuk a korábbi hullámokhoz.
+                continue
+
+            voluntary_exit_mask = (
+                employees["ExitDate"].notna()
+                & (employees["ExitDate"] > wave_date)
+                & (employees["ExitDate"] <= follow_up_end)
+                & (
+                    employees["EmployeeStatus"]
+                    == "Voluntarily Terminated"
+                )
+            )
+            if group_kind == (
+                "voluntary_exit_within_months_after_survey"
+            ):
+                cohort_mask = voluntary_exit_mask
+            else:
+                cohort_mask = ~voluntary_exit_mask
+            wave_employees = employees[cohort_mask]
+            cohort_ids = set(wave_employees["EmpID"])
+            wave_engagement = engagement[
+                engagement["EmpID"].isin(cohort_ids)
+            ]
+
+        elif group_kind != "all_employees":
+            raise ValueError(
+                f"Nem támogatott összehasonlítási csoport: {group_kind}"
+            )
+
+        wave_group_data = wave_engagement[
+            pd.to_datetime(
+                wave_engagement["SurveyLaunchDate"]
+            ) == wave_date
+        ]
+        if wave_group_data.empty:
+            continue
+
         result = calculate_metric(
             base_metric,
-            employees,
+            wave_employees,
             wave_date,
             wave_date,
-            engagement=engagement,
+            engagement=wave_engagement,
         )
         records.append({
             "SurveyLaunchDate": wave_date,
@@ -1166,6 +1233,12 @@ def calculate_engagement_time_series(
                 "valid_response_count"
             ),
         })
+
+    if not records:
+        raise ValueError(
+            "A kiválasztott csoporthoz nincs teljes "
+            "követési idővel rendelkező idősoros adat."
+        )
 
     return {
         "metric_name": base_metric,
