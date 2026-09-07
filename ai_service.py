@@ -1,4 +1,5 @@
 import json
+import unicodedata
 from typing import Literal
 
 from google import genai
@@ -20,11 +21,201 @@ MODEL_NAMES = (
 )
 
 
+def _normalized_text(text):
+    normalized = unicodedata.normalize("NFKD", text.lower())
+    return "".join(
+        character
+        for character in normalized
+        if not unicodedata.combining(character)
+    )
+
+
+def get_local_capability_answer(question):
+    """Return a quota-free answer for capability-list questions."""
+    text = _normalized_text(question)
+    capability_phrases = (
+        "mit tudsz elemezni",
+        "miket tudsz elemezni",
+        "milyen ismerveket tudsz elemezni",
+        "milyen jellemzoket tudsz elemezni",
+        "milyen adatokat tudsz elemezni",
+        "milyen mutatokat tudsz elemezni",
+        "milyen bontasokat tudsz",
+        "elemzesi lehetoseg",
+        "mirol kerdezhetlek",
+        "mit kerdezhetek",
+        "milyen kerdeseket tehetek fel",
+        "milyen elemzeseket tudsz kesziteni",
+        "milyen idosorokat tudsz",
+        "milyen trendeket tudsz",
+        "milyen idobeli elemzeseket tudsz",
+    )
+    if not any(phrase in text for phrase in capability_phrases):
+        return None
+
+    if any(
+        word in text
+        for word in ("idosor", "trend", "idobeli")
+    ):
+        return (
+            "**Jelenleg az alábbi idősorokat tudom megjeleníteni:**\n\n"
+            "- **Engagement:** elkötelezettség, elégedettség, work–life "
+            "balance, Top2Box-, Low2Box- és válaszadási arány felmérési "
+            "hullámonként.\n"
+            "- **Képzés:** részvétel, teljesítés, eredményesség, értékelés, "
+            "relevancia és költség havi, negyedéves vagy éves bontásban.\n"
+            "- **Csoportos összehasonlítás:** szervezeti, demográfiai, "
+            "képzési vagy későbbi kilépés szerinti bontásban.\n"
+            "- **Közös ábra:** több mutató és több csoport együttes "
+            "megjelenítésével.\n\n"
+            "A munkaerő- és fluktuációs idősorok még nincsenek teljesen "
+            "bekötve az AI-felületre."
+        )
+
+    if any(word in text for word in ("kepzes", "training")):
+        return (
+            "**A képzéseket az alábbi szempontok szerint tudom elemezni:**\n\n"
+            "- **Képzés jellemzői:** témakör, program, cél, megvalósítási "
+            "mód, belső/külső besorolás és időszak.\n"
+            "- **Részvétel és eredmény:** résztvevők, részvétel, teljesítés, "
+            "félbehagyás, törlés és sikeres vizsga.\n"
+            "- **Értékelés:** általános elégedettség, oktatói értékelés, "
+            "munkaköri és személyes relevancia, digitális használhatóság.\n"
+            "- **Költség:** teljes költség, résztvevőnkénti és sikeres "
+            "teljesítésenkénti költség, program vagy szolgáltató szerint.\n"
+            "- **Bontások:** szervezeti, demográfiai és képzési csoportok "
+            "szerint, egy időszakban vagy idősorosan."
+        )
+
+    if any(
+        word in text
+        for word in (
+            "engagement",
+            "elkotelezettseg",
+            "elegedettseg",
+            "work-life",
+            "work life",
+            "wlb",
+        )
+    ):
+        return (
+            "**Az engagement-felméréseket az alábbi szempontok szerint "
+            "tudom elemezni:**\n\n"
+            "- **Mutatók:** elkötelezettség, munkahelyi elégedettség és "
+            "work–life balance pontszám vagy 0–100-as index.\n"
+            "- **Megoszlás:** Top2Box- és Low2Box-arányok, valamint "
+            "válaszadási arány.\n"
+            "- **Időbeli elemzés:** felmérési hullámok, változások és "
+            "összevont időszaki eredmények.\n"
+            "- **Bontások:** szervezeti, nemek szerinti, generációs és korcsoportos "
+            "összehasonlítás.\n"
+            "- **Kapcsolatok:** későbbi önkéntes kilépéssel és képzési "
+            "jellemzőkkel való, nem oksági összevetés."
+        )
+
+    if any(
+        word in text
+        for word in (
+            "munkaero",
+            "munkavallalo",
+            "letszam",
+            "fluktuacio",
+            "belepo",
+            "kilepo",
+        )
+    ):
+        return (
+            "**A munkaerőt az alábbi szempontok szerint tudom elemezni:**\n\n"
+            "- **Létszám:** nyitó-, záró- és napi átlagos létszám, valamint "
+            "a nyitó- és zárólétszám egyszerű átlaga.\n"
+            "- **Mozgás:** belépők, kilépők és létszámváltozás időszak szerint.\n"
+            "- **Fluktuáció:** teljes, önkéntes, nem önkéntes, nyugdíjazási, "
+            "gördülő 3 és 12 havi ráta.\n"
+            "- **Bontások:** szervezeti egység, nem, generáció és korcsoport szerint.\n"
+            "- **Időbeli elemzés:** egyedi időszakokra, trendként vagy "
+            "csoportok összehasonlításával."
+        )
+
+    return (
+        "**Három fő HR-területet tudok elemezni:**\n\n"
+        "- **Munkaerő:** létszám, belépés, kilépés és fluktuáció.\n"
+        "- **Engagement:** elkötelezettség, elégedettség, work–life balance "
+        "és válaszadási arány.\n"
+        "- **Képzés:** részvétel, teljesítés, értékelés, relevancia és költség.\n"
+        "Az eredmények időszak, szervezeti és demográfiai csoportok szerint "
+        "is összehasonlíthatók."
+    )
+
+
+def get_training_type_clarification(question):
+    """Clarify the ambiguous Hungarian expression 'képzéstípus'."""
+    text = _normalized_text(question)
+    compact_text = "".join(
+        character
+        for character in text
+        if character.isalnum()
+    )
+    if "kepzestipus" not in compact_text:
+        return None
+
+    explicit_meanings = (
+        "temakor",
+        "tema szerint",
+        "kategori",
+        "program",
+        "megvalositasi mod",
+        "delivery",
+        "kepzesi cel",
+        "trainingpurpose",
+        "belso",
+        "kulso",
+        "internal",
+        "external",
+    )
+    if any(meaning in text for meaning in explicit_meanings):
+        return None
+
+    relevance_is_ambiguous = (
+        any(
+            word in text
+            for word in ("hasznossag", "relevancia")
+        )
+        and not any(
+            meaning in text
+            for meaning in (
+                "munkakori",
+                "szemelyes",
+                "mindket",
+                "mind a ket",
+            )
+        )
+    )
+
+    type_question = (
+        "Mit értesz képzéstípus alatt: képzési témakört, konkrét "
+        "programot, megvalósítási módot, képzési célt vagy belső/külső "
+        "besorolást?"
+    )
+    if not relevance_is_ambiguous:
+        return type_question
+
+    return (
+        f"{type_question} Továbbá a munkaköri relevanciát, a személyes "
+        "relevanciát vagy mindkettőt szeretnéd látni?"
+    )
+
+
 class QuestionFilter(BaseModel):
     field: Literal[
         "DepartmentType",
+        "GenderCode",
         "Generation",
         "AgeGroup",
+        "TrainingCategory",
+        "TrainingProgramName",
+        "TrainingPurpose",
+        "TrainingType",
+        "DeliveryMode",
     ]
     value: str
 
@@ -32,8 +223,14 @@ class QuestionFilter(BaseModel):
 class QuestionGrouping(BaseModel):
     field: Literal[
         "DepartmentType",
+        "GenderCode",
         "Generation",
         "AgeGroup",
+        "TrainingCategory",
+        "TrainingProgramName",
+        "TrainingPurpose",
+        "TrainingType",
+        "DeliveryMode",
     ]
     values: list[str] = Field(default_factory=list)
 
@@ -84,6 +281,22 @@ class QuestionPlan(BaseModel):
         "combined",
         "separate",
     ] = "automatic"
+    chart_type: Literal[
+        "automatic",
+        "line",
+        "bar",
+        "pie",
+        "stacked",
+        "stacked_100",
+    ] = "automatic"
+    time_granularity: Literal[
+        "automatic",
+        "month",
+        "quarter",
+        "half_year",
+        "year",
+        "survey_wave",
+    ] = "automatic"
     clarification_question: str | None = None
     reason: str
 
@@ -98,6 +311,11 @@ def build_routing_context():
         for field in employee_fields
         if field["name"] == "DepartmentType"
     )
+    gender_field = next(
+        field
+        for field in employee_fields
+        if field["name"] == "GenderCode"
+    )
     derived_dimensions = catalogs["employee"].get(
         "derived_dimensions",
         []
@@ -111,6 +329,18 @@ def build_routing_context():
         if dimension["name"] in {
             "Generation",
             "AgeGroup",
+        }
+    }
+    training_fields = catalogs["training"]["fields"]
+    training_dimensions = {
+        field["name"]: field["allowed_values"]
+        for field in training_fields
+        if field["name"] in {
+            "TrainingCategory",
+            "TrainingProgramName",
+            "TrainingPurpose",
+            "TrainingType",
+            "DeliveryMode",
         }
     }
 
@@ -132,7 +362,9 @@ def build_routing_context():
             "DepartmentType": department_field[
                 "allowed_values"
             ],
+            "GenderCode": gender_field["allowed_values"],
             **demographic_filters,
+            **training_dimensions,
         },
     }
 
@@ -168,6 +400,19 @@ Szabályok:
   a dimenziót a groupings listában add vissza, ne a filters listában.
 - A grouping field csak a filter_dimensions alatt felsorolt mező lehet.
 - Ha nincs kért bontás, a groupings lista legyen üres.
+- A „nemek szerint”, „nők és férfiak” vagy hasonló bontás a GenderCode mezőt jelenti.
+- A „képzés típusa” vagy „képzéstípus” önmagában többértelmű. Ha a
+  felhasználó nem pontosította a jelentését, kérdezd meg, hogy képzési
+  témakört, konkrét programot, megvalósítási módot, képzési célt vagy
+  belső/külső besorolást ért-e alatta. Ne válaszd automatikusan a TrainingType mezőt.
+- A „képzési kategória” a TrainingCategory, a „képzési program” a
+  TrainingProgramName, a „képzés célja” a TrainingPurpose, a „képzési forma”
+  pedig a DeliveryMode mezőt jelenti.
+- A „képzés hasznossága” vagy „relevanciája” önmagában nem egyértelmű:
+  kérdezd meg, hogy a munkaköri relevanciaindexet, a személyes
+  relevanciaindexet vagy mindkettőt szeretné-e látni.
+- Munkaköri hasznosságnál az AverageJobRelevanceIndex, személyes fejlődésnél
+  az AveragePersonalRelevanceIndex mutatót használd.
 - Ha a felhasználó csak bizonyos kategóriákat akar összehasonlítani,
   a kiválasztott pontos kategóriaértékek kerüljenek a grouping values listájába.
 - Ha egy dimenzió minden kategóriáját kéri, a values lista legyen üres.
@@ -192,10 +437,22 @@ Szabályok:
   legyen comparison.
 - Ha bontást vagy rangsort kér, az output_type legyen grouped_table.
 - Egyetlen összesített eredménynél az output_type legyen single_value.
+- Egy adott időpont munkavállalói összetételénél a ClosingHeadcount mutatót,
+  a kért demográfiai vagy szervezeti grouping mezőt és a pie chart_type értéket használd.
+- A munkavállalói összetétel időbeli változásánál a ClosingHeadcount mutatót,
+  time_series output_type értéket és stacked_100 chart_type értéket használj.
+- Ha az egyes csoportok abszolút létszámának időbeli változását kéri,
+  a chart_type stacked legyen. Kördiagramot idősorra ne használj.
 - Több, azonos időtengelyen értelmezhető mutató esetén a chart_layout legyen
   combined, ha a felhasználó egy közös ábrát kér. Máskor automatic.
 - A chart_layout csak a megjelenítést szabályozza; emiatt mutatót vagy csoportot
   ne hagyj ki a tervből.
+- Felmérési idősornál a time_granularity legyen survey_wave.
+- Képzési idősornál az explicit havi, negyedéves vagy éves kérést add vissza.
+  Ha a felhasználó nem adott gyakoriságot, legyen automatic.
+- A féléves gyakoriság time_granularity értéke half_year legyen.
+- A munkavállalói kategóriamegoszlás idősora lehet negyedéves, féléves vagy éves;
+  az explicit gyakoriságot mindig tartsd meg.
 - A „2026 első féléve” időszaka 2026-01-01–2026-06-30.
 - Hiányzó időszakot csak a katalógus kifejezett
   alapértelmezési szabálya alapján tölts ki.

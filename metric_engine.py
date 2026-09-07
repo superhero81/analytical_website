@@ -189,6 +189,42 @@ TRAINING_BOX_METRICS = {
 }
 
 
+TRAINING_TIME_SERIES_METRICS = {
+    "TrainingParticipationRate",
+    "TrainingCompletionRate",
+    "SuccessfulTrainingCoverage",
+    "AssessmentPassRate",
+    "TrainingFeedbackResponseRate",
+    "AverageOverallSatisfactionScore",
+    "AverageOverallSatisfactionIndex",
+    "AverageTrainerEvaluationScore",
+    "AverageTrainerEvaluationIndex",
+    "AverageJobRelevanceScore",
+    "AverageJobRelevanceIndex",
+    "AveragePersonalRelevanceScore",
+    "AveragePersonalRelevanceIndex",
+    "AverageDigitalContentUsabilityScore",
+    "AverageDigitalContentUsabilityIndex",
+    "OverallSatisfactionTop2BoxRate",
+    "OverallSatisfactionLow2BoxRate",
+    "TrainerEvaluationTop2BoxRate",
+    "TrainerEvaluationLow2BoxRate",
+    "JobRelevanceTop2BoxRate",
+    "JobRelevanceLow2BoxRate",
+    "PersonalRelevanceTop2BoxRate",
+    "PersonalRelevanceLow2BoxRate",
+    "DigitalContentUsabilityTop2BoxRate",
+    "DigitalContentUsabilityLow2BoxRate",
+    "CostPerParticipant",
+    "CostPerSuccessfulCompletion",
+    "TrainingIncompleteRate",
+    "TrainingCancellationRate",
+    "TotalTrainingCost",
+    "TrainingParticipantCount",
+    "SuccessfulTrainingCompletionCount",
+}
+
+
 def headcount_on_date(employees, date):
     date = pd.Timestamp(date)
 
@@ -1252,5 +1288,119 @@ def calculate_engagement_time_series(
         "end_date": records[-1][
             "SurveyLaunchDate"
         ].date().isoformat(),
+    }
+
+
+def calculate_training_time_series(
+    metric_name,
+    employees,
+    training,
+    start_date,
+    end_date,
+    granularity="automatic",
+):
+    if metric_name not in TRAINING_TIME_SERIES_METRICS:
+        raise ValueError(
+            "Ehhez a mutatóhoz nem készíthető képzési idősor."
+        )
+
+    start_date = pd.Timestamp(start_date)
+    end_date = pd.Timestamp(end_date)
+    if start_date > end_date:
+        raise ValueError("A kezdődátum nem lehet későbbi a záródátumnál.")
+
+    if granularity == "automatic":
+        month_count = (
+            (end_date.year - start_date.year) * 12
+            + end_date.month - start_date.month + 1
+        )
+        if month_count <= 12:
+            granularity = "month"
+        elif month_count <= 36:
+            granularity = "quarter"
+        else:
+            granularity = "year"
+
+    frequency = {
+        "month": "M",
+        "quarter": "Q",
+        "year": "Y",
+    }.get(granularity)
+    if frequency is None:
+        raise ValueError(
+            "A képzési idősor gyakorisága havi, negyedéves "
+            "vagy éves lehet."
+        )
+
+    periods = pd.period_range(
+        start=start_date,
+        end=end_date,
+        freq=frequency,
+    )
+    records = []
+    for period in periods:
+        period_start = max(
+            period.start_time.normalize(),
+            start_date,
+        )
+        period_end = min(
+            period.end_time.normalize(),
+            end_date,
+        )
+        period_training = _training_in_period(
+            training,
+            period_start,
+            period_end,
+        )
+        if period_training.empty:
+            continue
+
+        try:
+            result = calculate_metric(
+                metric_name,
+                employees,
+                period_start,
+                period_end,
+                training=period_training,
+            )
+        except ValueError:
+            continue
+
+        if granularity == "month":
+            period_label = period.strftime("%Y-%m")
+        elif granularity == "quarter":
+            period_label = f"{period.year}-Q{period.quarter}"
+        else:
+            period_label = str(period.year)
+
+        records.append({
+            "PeriodStart": period_start,
+            "PeriodEnd": period_end,
+            "PeriodLabel": period_label,
+            "Value": result["value"],
+            "RespondentCount": result.get(
+                "valid_response_count"
+            ),
+            "ParticipantCount": int(
+                period_training["EmpID"].nunique()
+            ),
+            "RecordCount": int(len(period_training)),
+        })
+
+    if len(records) < 2:
+        raise ValueError(
+            "A képzési idősorhoz legalább két "
+            "megjeleníthető időszak szükséges."
+        )
+
+    return {
+        "metric_name": metric_name,
+        "label": get_metric(metric_name)["label"],
+        "unit": get_metric(metric_name)["unit"],
+        "granularity": granularity,
+        "records": records,
+        "change": records[-1]["Value"] - records[0]["Value"],
+        "start_date": records[0]["PeriodStart"].date().isoformat(),
+        "end_date": records[-1]["PeriodEnd"].date().isoformat(),
     }
 

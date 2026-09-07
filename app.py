@@ -6,11 +6,18 @@ import pandas as pd
 import streamlit as st
 import altair as alt
 from catalog_service import get_metric, load_catalogs
-from ai_service import interpret_results, plan_question
+from ai_service import (
+    get_local_capability_answer,
+    get_training_type_clarification,
+    interpret_results,
+    plan_question,
+)
 from metric_engine import (
     SUPPORTED_METRICS,
+    TRAINING_TIME_SERIES_METRICS,
     calculate_engagement_time_series,
     calculate_metric,
+    calculate_training_time_series,
 )
 
 st.set_page_config(
@@ -1249,7 +1256,7 @@ def add_demographic_dimensions(employee_data, filter_date):
             "Silent Generation (1945 vagy korábban)",
             "Baby Boomer (1946–1964)",
             "Generation X (1965–1980)",
-            "Millennial (1981–1996)",
+            "Generation Y (Millennial, 1981–1996)",
             "Generation Z (1997–2012)",
         ]
     ).astype("string")
@@ -1281,6 +1288,172 @@ def add_demographic_dimensions(employee_data, filter_date):
     return result
 
 
+def workforce_composition_dates(start_date, end_date, granularity):
+    start = pd.Timestamp(start_date)
+    end = pd.Timestamp(end_date)
+    if start == end:
+        return [end]
+
+    if granularity == "automatic":
+        duration_days = (end - start).days
+        if duration_days <= 550:
+            granularity = "month"
+        elif duration_days <= 1825:
+            granularity = "quarter"
+        else:
+            granularity = "year"
+
+    frequency = {
+        "month": "M",
+        "quarter": "Q",
+        "year": "Y",
+    }.get(granularity, "M")
+    periods = pd.period_range(start=start, end=end, freq=frequency)
+    dates = [
+        min(period.end_time.normalize(), end)
+        for period in periods
+    ]
+    return list(dict.fromkeys(dates))
+
+
+def build_workforce_composition(
+    employee_data,
+    grouping_field,
+    requested_values,
+    start_date,
+    end_date,
+    granularity,
+):
+    records = []
+    for snapshot_date in workforce_composition_dates(
+        start_date,
+        end_date,
+        granularity,
+    ):
+        dimensioned = add_demographic_dimensions(
+            employee_data,
+            snapshot_date,
+        )
+        active = dimensioned[
+            (dimensioned["StartDate"] <= snapshot_date)
+            & (
+                dimensioned["ExitDate"].isna()
+                | (dimensioned["ExitDate"] > snapshot_date)
+            )
+        ]
+        if requested_values:
+            active = active[
+                active[grouping_field].isin(requested_values)
+            ]
+        counts = active.groupby(
+            grouping_field,
+            observed=True,
+        )["EmpID"].nunique()
+        counts = counts[counts >= 4]
+        visible_total = counts.sum()
+        for group_value, count in counts.items():
+            records.append({
+                "Dátum": snapshot_date,
+                "Időszak": snapshot_date.strftime("%Y-%m-%d"),
+                "Csoport": str(group_value),
+                "Létszám": int(count),
+                "Arány": (
+                    count / visible_total * 100
+                    if visible_total > 0
+                    else 0
+                ),
+            })
+    if not records:
+        raise ValueError(
+            "Nincs megjeleníthető, legalább 4 fős csoporteredmény."
+        )
+    return pd.DataFrame(records)
+
+
+def render_workforce_composition(data, chart_type, grouping_field):
+    logical_orders = {
+        "Generation": [
+            "Silent Generation (1945 vagy korábban)",
+            "Baby Boomer (1946–1964)",
+            "Generation X (1965–1980)",
+            "Generation Y (Millennial, 1981–1996)",
+            "Generation Z (1997–2012)",
+        ],
+        "AgeGroup": [
+            "29 éves vagy fiatalabb",
+            "30–44 éves",
+            "45–59 éves",
+            "60 éves vagy idősebb",
+        ],
+        "GenderCode": ["Female", "Male"],
+    }
+    group_order = logical_orders.get(
+        grouping_field,
+        list(dict.fromkeys(data["Csoport"])),
+    )
+    order_lookup = {
+        value: index
+        for index, value in enumerate(group_order)
+    }
+    data = data.copy()
+    data["Sorrend"] = data["Csoport"].map(order_lookup).fillna(
+        len(group_order)
+    )
+
+    if chart_type == "pie":
+        chart = (
+            alt.Chart(data)
+            .mark_arc(innerRadius=45)
+            .encode(
+                theta=alt.Theta("Létszám:Q"),
+                color=alt.Color(
+                    "Csoport:N",
+                    title=grouping_field,
+                    sort=group_order,
+                    legend=alt.Legend(labelLimit=260),
+                ),
+                order=alt.Order("Sorrend:Q", sort="ascending"),
+                tooltip=[
+                    alt.Tooltip("Csoport:N", title="Csoport"),
+                    alt.Tooltip("Létszám:Q", title="Létszám"),
+                    alt.Tooltip("Arány:Q", title="Arány", format=".1f"),
+                ],
+            )
+            .properties(height=400)
+        )
+    else:
+        value_field = "Arány" if chart_type == "stacked_100" else "Létszám"
+        value_title = "Megoszlás (%)" if chart_type == "stacked_100" else "Létszám (fő)"
+        chart = (
+            alt.Chart(data)
+            .mark_area()
+            .encode(
+                x=alt.X("Dátum:T", title="Időpont"),
+                y=alt.Y(
+                    f"{value_field}:Q",
+                    title=value_title,
+                    stack="normalize" if chart_type == "stacked_100" else "zero",
+                    axis=alt.Axis(format="%") if chart_type == "stacked_100" else alt.Axis(),
+                ),
+                color=alt.Color(
+                    "Csoport:N",
+                    title=grouping_field,
+                    sort=group_order,
+                    legend=alt.Legend(labelLimit=260),
+                ),
+                order=alt.Order("Sorrend:Q", sort="ascending"),
+                tooltip=[
+                    alt.Tooltip("Időszak:N", title="Időpont"),
+                    alt.Tooltip("Csoport:N", title="Csoport"),
+                    alt.Tooltip("Létszám:Q", title="Létszám"),
+                    alt.Tooltip("Arány:Q", title="Arány (%)", format=".1f"),
+                ],
+            )
+            .properties(height=400)
+        )
+    st.altair_chart(chart, width="stretch")
+
+
 def apply_question_filters(
     employee_data,
     engagement_data,
@@ -1293,6 +1466,19 @@ def apply_question_filters(
         filter_date
     )
 
+    employee_filter_fields = {
+        "DepartmentType",
+        "GenderCode",
+        "Generation",
+        "AgeGroup",
+    }
+    training_filter_fields = {
+        "TrainingCategory",
+        "TrainingProgramName",
+        "TrainingPurpose",
+        "TrainingType",
+        "DeliveryMode",
+    }
     filters_by_field = {}
     for question_filter in question_filters:
         filters_by_field.setdefault(
@@ -1301,6 +1487,8 @@ def apply_question_filters(
         ).append(question_filter.value)
 
     for field, values in filters_by_field.items():
+        if field not in employee_filter_fields:
+            continue
         filtered_employees = filtered_employees[
             filtered_employees[field].isin(values)
         ]
@@ -1312,6 +1500,12 @@ def apply_question_filters(
     filtered_training = training_data[
         training_data["EmpID"].isin(employee_ids)
     ].copy()
+    for field, values in filters_by_field.items():
+        if field not in training_filter_fields:
+            continue
+        filtered_training = filtered_training[
+            filtered_training[field].isin(values)
+        ]
 
     filter_label = ", ".join(
         f"{field}: {' / '.join(values)}"
@@ -1327,7 +1521,7 @@ def apply_question_filters(
 
 
 def _axis_key(unit):
-    if "0–100" in unit:
+    if "0–100" in unit or unit in {"pont", "indexpont"}:
         return "0–100-as skála"
     if unit == "százalék":
         return "százalék"
@@ -1345,6 +1539,23 @@ def _wrap_legend_label(value, width=24):
             break_on_hyphens=False,
         )
     )
+
+
+def _metric_short_label(metric_name, label):
+    return {
+        "AverageEngagementIndex": "Elkötelezettség",
+        "AverageSatisfactionIndex": "Elégedettség",
+        "AverageWorkLifeBalanceIndex": "Work–life balance",
+        "SurveyResponseRate": "Válaszadási arány",
+        "SatisfactionLow2BoxRate": "Elégedettség Low2Box",
+        "AverageOverallSatisfactionIndex": "Képzési elégedettség",
+        "AverageTrainerEvaluationIndex": "Oktatói értékelés",
+        "AverageJobRelevanceIndex": "Munkaköri relevancia",
+        "AveragePersonalRelevanceIndex": "Személyes relevancia",
+        "AverageDigitalContentUsabilityIndex": (
+            "Digitális használhatóság"
+        ),
+    }.get(metric_name, label)
 
 
 def build_combined_engagement_time_series(
@@ -1450,19 +1661,14 @@ def build_combined_engagement_time_series(
                     sample_size = record.get("RespondentCount")
                     if sample_size is not None and sample_size < 4:
                         continue
-                    metric_short = {
-                        "AverageEngagementIndex": "Elkötelezettség",
-                        "AverageSatisfactionIndex": "Elégedettség",
-                        "AverageWorkLifeBalanceIndex": (
-                            "Work–life balance"
-                        ),
-                        "SurveyResponseRate": "Válaszadási arány",
-                        "SatisfactionLow2BoxRate": (
-                            "Elégedettség Low2Box"
-                        ),
-                    }.get(result["metric_name"], result["label"])
+                    metric_short = _metric_short_label(
+                        result["metric_name"], result["label"]
+                    )
                     records.append({
                         **record,
+                        "PeriodStart": record["SurveyLaunchDate"],
+                        "PeriodEnd": record["SurveyLaunchDate"],
+                        "PeriodLabel": record["SurveyWaveID"],
                         "Metric": result["label"],
                         "MetricShort": metric_short,
                         "MetricLegend": _wrap_legend_label(
@@ -1484,6 +1690,135 @@ def build_combined_engagement_time_series(
         raise ValueError(
             "Nincs megjeleníthető, legalább 4 választ "
             "tartalmazó idősoros eredmény."
+        )
+    return pd.DataFrame(records)
+
+
+def build_combined_training_time_series(
+    question_plan,
+    employee_data,
+    training_data,
+    filter_label,
+):
+    if question_plan.comparison_groups:
+        raise ValueError(
+            "A felmérés utáni kilépői csoportok csak "
+            "engagement-idősornál használhatók."
+        )
+
+    employee_group_fields = {
+        "DepartmentType",
+        "GenderCode",
+        "Generation",
+        "AgeGroup",
+    }
+    training_group_fields = {
+        "TrainingCategory",
+        "TrainingProgramName",
+        "TrainingPurpose",
+        "TrainingType",
+        "DeliveryMode",
+    }
+    grouping_specs = [
+        (filter_label, employee_data, training_data)
+    ]
+
+    if question_plan.groupings:
+        grouping = question_plan.groupings[0]
+        if grouping.field in employee_group_fields:
+            dimensioned = add_demographic_dimensions(
+                employee_data,
+                question_plan.end_date,
+            )
+            values = sorted(
+                dimensioned[grouping.field].dropna().unique()
+            )
+            if grouping.values:
+                values = [
+                    value for value in values
+                    if value in grouping.values
+                ]
+            grouping_specs = []
+            for value in values:
+                group_employees = dimensioned[
+                    dimensioned[grouping.field] == value
+                ]
+                group_ids = set(group_employees["EmpID"])
+                group_training = training_data[
+                    training_data["EmpID"].isin(group_ids)
+                ]
+                grouping_specs.append(
+                    (value, group_employees, group_training)
+                )
+        elif grouping.field in training_group_fields:
+            values = sorted(
+                training_data[grouping.field].dropna().unique()
+            )
+            if grouping.values:
+                values = [
+                    value for value in values
+                    if value in grouping.values
+                ]
+            grouping_specs = [
+                (
+                    value,
+                    employee_data,
+                    training_data[
+                        training_data[grouping.field] == value
+                    ],
+                )
+                for value in values
+            ]
+        else:
+            raise ValueError(
+                f"Nem támogatott képzési bontás: {grouping.field}"
+            )
+
+    records = []
+    for group_label, group_employees, group_training in grouping_specs:
+        for metric_name in question_plan.metric_names:
+            if metric_name not in TRAINING_TIME_SERIES_METRICS:
+                continue
+            try:
+                result = calculate_training_time_series(
+                    metric_name,
+                    group_employees,
+                    group_training,
+                    question_plan.start_date,
+                    question_plan.end_date,
+                    granularity=question_plan.time_granularity,
+                )
+            except ValueError:
+                continue
+
+            metric_short = _metric_short_label(
+                result["metric_name"], result["label"]
+            )
+            for record in result["records"]:
+                sample_size = (
+                    record.get("RespondentCount")
+                    if record.get("RespondentCount") is not None
+                    else record.get("ParticipantCount")
+                )
+                if sample_size is not None and sample_size < 4:
+                    continue
+                records.append({
+                    **record,
+                    "Metric": result["label"],
+                    "MetricShort": metric_short,
+                    "MetricLegend": _wrap_legend_label(metric_short),
+                    "MetricName": result["metric_name"],
+                    "Unit": result["unit"],
+                    "Axis": _axis_key(result["unit"]),
+                    "Group": group_label,
+                    "GroupLegend": _wrap_legend_label(group_label),
+                    "Series": f"{result['label']} – {group_label}",
+                })
+
+    if not records:
+        raise ValueError(
+            "Nincs megjeleníthető, legalább 4 résztvevőt "
+            "vagy választ tartalmazó képzési idősor."
         )
     return pd.DataFrame(records)
 
@@ -1511,11 +1846,11 @@ def _time_series_layer(
         .mark_line(point=True)
         .encode(
             x=alt.X(
-                "SurveyWaveID:N",
-                title="Felmérési hullám",
+                "PeriodLabel:N",
+                title="Időszak",
                 axis=alt.Axis(labelAngle=-45),
                 sort=alt.SortField(
-                    field="SurveyLaunchDate",
+                    field="PeriodStart",
                     order="ascending",
                 ),
             ),
@@ -1542,7 +1877,7 @@ def _time_series_layer(
                 legend=None,
             ),
             tooltip=[
-                alt.Tooltip("SurveyWaveID:N", title="Hullám"),
+                alt.Tooltip("PeriodLabel:N", title="Időszak"),
                 alt.Tooltip("Metric:N", title="Mutató"),
                 alt.Tooltip("Group:N", title="Csoport"),
                 alt.Tooltip(
@@ -1695,26 +2030,84 @@ ai_interpretation_enabled = st.toggle(
 if "pending_ai_question" not in st.session_state:
     st.session_state.pending_ai_question = None
 
+if "pending_clarification_question" not in st.session_state:
+    st.session_state.pending_clarification_question = None
+
+if "clarification_round" not in st.session_state:
+    st.session_state.clarification_round = 0
+
 is_clarification = (
     st.session_state.pending_ai_question is not None
 )
 
-ai_question = st.text_area(
-    (
-        "Add meg a pontosítást"
-        if is_clarification
-        else "Mit szeretnél megtudni?"
-    ),
-    placeholder=(
-        "Például: 2026 első félévében."
-        if is_clarification
-        else (
+
+def set_ai_example_question(question):
+    st.session_state.ai_question = question
+
+if is_clarification:
+    st.markdown("**Eredeti kérdés:**")
+    st.markdown(
+        f"> {st.session_state.pending_ai_question}"
+    )
+    st.info(
+        st.session_state.pending_clarification_question
+        or "Kérlek, pontosítsd a kérésedet."
+    )
+    ai_question = st.text_area(
+        "Válasz a pontosító kérdésre",
+        placeholder="Írd ide a pontosítást...",
+        key=(
+            "ai_clarification_answer_"
+            f"{st.session_state.clarification_round}"
+        ),
+    )
+else:
+    example_questions = (
+        (
+            "Mit kérdezhetek?",
+            "Milyen kérdéseket tehetek fel?",
+        ),
+        (
+            "Milyen idősorok vannak?",
+            "Milyen idősorokat tudsz mutatni?",
+        ),
+        (
+            "Munkaerő-elemzések",
+            "Milyen jellemzőket tudsz elemezni a "
+            "munkavállalókkal kapcsolatban?"
+        ),
+        (
+            "Engagement-elemzések",
+            "Milyen jellemzőket tudsz elemezni az "
+            "engagementtel kapcsolatban?"
+        ),
+        (
+            "Képzési elemzések",
+            "Milyen jellemzőket tudsz elemezni a "
+            "képzésekkel kapcsolatban?"
+        ),
+    )
+    example_columns = st.columns(5)
+    for question_index, (
+        column,
+        (button_label, example_question),
+    ) in enumerate(zip(example_columns, example_questions)):
+        column.button(
+            button_label,
+            key=f"ai_example_{question_index}",
+            on_click=set_ai_example_question,
+            args=(example_question,),
+            use_container_width=True,
+        )
+
+    ai_question = st.text_area(
+        "Mit szeretnél megtudni?",
+        placeholder=(
             "Például: Mennyi volt az átlagos "
             "létszám 2026 első félévében?"
-        )
-    ),
-    key="ai_question"
-)
+        ),
+        key="ai_question",
+    )
 
 if st.button(
     (
@@ -1722,10 +2115,39 @@ if st.button(
         if is_clarification
         else "Kérdés értelmezése"
     ),
-    key="ai_question_button"
+    key=(
+        "ai_clarification_button"
+        if is_clarification
+        else "ai_question_button"
+    )
 ):
     if not ai_question.strip():
         st.warning("Írj be egy kérdést vagy pontosítást.")
+
+    elif (
+        not is_clarification
+        and (
+            capability_answer := get_local_capability_answer(
+                ai_question
+            )
+        )
+    ):
+        st.markdown(capability_answer)
+
+    elif (
+        not is_clarification
+        and (
+            training_type_question := (
+                get_training_type_clarification(ai_question)
+            )
+        )
+    ):
+        st.session_state.pending_ai_question = ai_question
+        st.session_state.pending_clarification_question = (
+            training_type_question
+        )
+        st.session_state.clarification_round += 1
+        st.rerun()
 
     elif not st.secrets.get("GEMINI_API_KEY"):
         st.error("A Gemini API-kulcs nincs beállítva.")
@@ -1750,6 +2172,7 @@ if st.button(
 
             if question_plan.status == "answerable":
                 st.session_state.pending_ai_question = None
+                st.session_state.pending_clarification_question = None
 
                 if not question_plan.metric_names:
                     st.warning(
@@ -1795,6 +2218,7 @@ if st.button(
 
                     interpretation_payload = []
                     combined_time_series_rendered = False
+                    workforce_composition_rendered = False
 
                     for selected_metric in (
                         question_plan.metric_names
@@ -1802,18 +2226,115 @@ if st.button(
                         if selected_metric not in SUPPORTED_METRICS:
                             continue
 
+                        employee_composition_fields = {
+                            "DepartmentType",
+                            "GenderCode",
+                            "Generation",
+                            "AgeGroup",
+                        }
+                        if (
+                            not workforce_composition_rendered
+                            and selected_metric == "ClosingHeadcount"
+                            and question_plan.groupings
+                            and question_plan.groupings[0].field
+                            in employee_composition_fields
+                            and question_plan.chart_type
+                            in {"pie", "stacked", "stacked_100"}
+                        ):
+                            grouping = question_plan.groupings[0]
+                            composition_end = (
+                                question_plan.end_date
+                                or reference_date
+                            )
+                            composition_start = (
+                                question_plan.start_date
+                                or composition_end
+                            )
+                            composition_data = (
+                                build_workforce_composition(
+                                    analysis_employees,
+                                    grouping.field,
+                                    grouping.values,
+                                    composition_start,
+                                    composition_end,
+                                    question_plan.time_granularity,
+                                )
+                            )
+                            workforce_composition_rendered = True
+                            title = (
+                                "Munkavállalói összetétel"
+                                if question_plan.chart_type == "pie"
+                                else "Munkavállalói összetétel időbeli alakulása"
+                            )
+                            st.success(f"**{title}**")
+                            render_workforce_composition(
+                                composition_data,
+                                question_plan.chart_type,
+                                grouping.field,
+                            )
+                            with st.expander("Részletes adatok"):
+                                st.dataframe(
+                                    composition_data,
+                                    hide_index=True,
+                                    use_container_width=True,
+                                )
+                            st.caption(
+                                "Az 1–3 fős csoporteredmények nem jelennek meg."
+                            )
+                            interpretation_payload.append({
+                                "type": "workforce_composition",
+                                "grouping": grouping.field,
+                                "data": composition_data.to_dict(
+                                    orient="records"
+                                ),
+                            })
+                            continue
+
                         if question_plan.output_type == "time_series":
                             if combined_time_series_rendered:
                                 continue
 
-                            time_series_data = (
-                                build_combined_engagement_time_series(
-                                    question_plan,
-                                    analysis_employees,
-                                    analysis_engagement,
-                                    analysis_filter_label,
-                                )
+                            requested_supported_metrics = {
+                                metric_name
+                                for metric_name in question_plan.metric_names
+                                if metric_name in SUPPORTED_METRICS
+                            }
+                            requested_training_metrics = (
+                                requested_supported_metrics
+                                & TRAINING_TIME_SERIES_METRICS
                             )
+                            if (
+                                requested_training_metrics
+                                and requested_training_metrics
+                                != requested_supported_metrics
+                            ):
+                                raise ValueError(
+                                    "Az engagement- és képzési idősorok "
+                                    "eltérő időalapúak, ezért külön ábrán "
+                                    "kell megjeleníteni őket."
+                                )
+
+                            is_training_time_series = bool(
+                                requested_training_metrics
+                            )
+                            if is_training_time_series:
+                                time_series_data = (
+                                    build_combined_training_time_series(
+                                        question_plan,
+                                        analysis_employees,
+                                        analysis_training,
+                                        analysis_filter_label,
+                                    )
+                                )
+                            else:
+                                time_series_data = (
+                                    build_combined_engagement_time_series(
+                                        question_plan,
+                                        analysis_employees,
+                                        analysis_engagement,
+                                        analysis_filter_label,
+                                    )
+                                )
                             combined_time_series_rendered = True
 
                             st.success(
@@ -1824,25 +2345,38 @@ if st.button(
                                 question_plan.chart_layout,
                             )
                             with st.expander("Idősoros adatok"):
-                                st.dataframe(
-                                    time_series_data[[
-                                        "SurveyWaveID",
+                                table_columns = [
+                                    column for column in [
+                                        "PeriodLabel",
                                         "Metric",
                                         "Group",
                                         "Value",
                                         "Unit",
                                         "RespondentCount",
-                                    ]],
+                                        "ParticipantCount",
+                                        "RecordCount",
+                                    ]
+                                    if column in time_series_data.columns
+                                ]
+                                st.dataframe(
+                                    time_series_data[table_columns],
                                     hide_index=True,
                                     use_container_width=True,
                                 )
-                            st.caption(
-                                "Az 1–3 érvényes választ tartalmazó "
-                                "csoportpontok nem jelennek meg. A "
-                                "kilépői csoportoknál csak a teljes "
-                                "követési idővel rendelkező hullámok "
-                                "szerepelnek."
-                            )
+                            if is_training_time_series:
+                                st.caption(
+                                    "Az 1–3 résztvevőt vagy érvényes "
+                                    "visszajelzést tartalmazó képzési "
+                                    "csoportpontok nem jelennek meg."
+                                )
+                            else:
+                                st.caption(
+                                    "Az 1–3 érvényes választ tartalmazó "
+                                    "csoportpontok nem jelennek meg. A "
+                                    "kilépői csoportoknál csak a teljes "
+                                    "követési idővel rendelkező hullámok "
+                                    "szerepelnek."
+                                )
                             interpretation_payload.append({
                                 "type": "combined_time_series",
                                 "data": time_series_data.to_dict(
@@ -2079,17 +2613,31 @@ if st.button(
                                 question_plan.end_date
                                 or reference_date
                             )
-                            dimensioned_employees = (
-                                add_demographic_dimensions(
-                                    analysis_employees,
-                                    grouping_date,
+                            training_group_fields = {
+                                "TrainingCategory",
+                                "TrainingProgramName",
+                                "TrainingPurpose",
+                                "TrainingType",
+                                "DeliveryMode",
+                            }
+                            if grouping_field in training_group_fields:
+                                group_values = sorted(
+                                    analysis_training[
+                                        grouping_field
+                                    ].dropna().unique()
                                 )
-                            )
-                            group_values = sorted(
-                                dimensioned_employees[
-                                    grouping_field
-                                ].dropna().unique()
-                            )
+                            else:
+                                dimensioned_employees = (
+                                    add_demographic_dimensions(
+                                        analysis_employees,
+                                        grouping_date,
+                                    )
+                                )
+                                group_values = sorted(
+                                    dimensioned_employees[
+                                        grouping_field
+                                    ].dropna().unique()
+                                )
                             requested_values = (
                                 grouping.values
                             )
@@ -2102,30 +2650,38 @@ if st.button(
 
                             comparison_records = []
                             for group_value in group_values:
-                                group_employees = (
-                                    dimensioned_employees[
+                                if grouping_field in training_group_fields:
+                                    group_employees = analysis_employees
+                                    group_engagement = analysis_engagement
+                                    group_training = analysis_training[
+                                        analysis_training[grouping_field]
+                                        == group_value
+                                    ]
+                                else:
+                                    group_employees = (
                                         dimensioned_employees[
-                                            grouping_field
-                                        ] == group_value
-                                    ]
-                                )
-                                group_ids = set(
-                                    group_employees["EmpID"]
-                                )
-                                group_engagement = (
-                                    analysis_engagement[
+                                            dimensioned_employees[
+                                                grouping_field
+                                            ] == group_value
+                                        ]
+                                    )
+                                    group_ids = set(
+                                        group_employees["EmpID"]
+                                    )
+                                    group_engagement = (
                                         analysis_engagement[
-                                            "EmpID"
-                                        ].isin(group_ids)
-                                    ]
-                                )
-                                group_training = (
-                                    analysis_training[
+                                            analysis_engagement[
+                                                "EmpID"
+                                            ].isin(group_ids)
+                                        ]
+                                    )
+                                    group_training = (
                                         analysis_training[
-                                            "EmpID"
-                                        ].isin(group_ids)
-                                    ]
-                                )
+                                            analysis_training[
+                                                "EmpID"
+                                            ].isin(group_ids)
+                                        ]
+                                    )
 
                                 group_metric_result = calculate_metric(
                                     selected_metric,
@@ -2136,9 +2692,17 @@ if st.button(
                                     training=group_training,
                                 )
                                 sample_size = group_metric_result.get(
-                                    "valid_response_count",
-                                    group_employees["EmpID"].nunique(),
+                                    "valid_response_count"
                                 )
+                                if sample_size is None:
+                                    sample_size = (
+                                        group_training["EmpID"].nunique()
+                                        if grouping_field
+                                        in training_group_fields
+                                        else group_employees[
+                                            "EmpID"
+                                        ].nunique()
+                                    )
                                 if sample_size >= 4:
                                     comparison_records.append({
                                         "Csoport": group_value,
@@ -2335,12 +2899,15 @@ if st.button(
                 st.session_state.pending_ai_question = (
                     question_for_planning
                 )
-                st.info(
+                st.session_state.pending_clarification_question = (
                     question_plan.clarification_question
                 )
+                st.session_state.clarification_round += 1
+                st.rerun()
 
             else:
                 st.session_state.pending_ai_question = None
+                st.session_state.pending_clarification_question = None
                 st.warning(question_plan.reason)
 
             with st.expander("Értelmezési részletek"):

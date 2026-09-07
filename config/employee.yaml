@@ -386,7 +386,7 @@ derived_dimensions:
       - label: "Generation X (1965–1980)"
         birth_year_from: 1965
         birth_year_to: 1980
-      - label: "Millennial (1981–1996)"
+      - label: "Generation Y (Millennial, 1981–1996)"
         birth_year_from: 1981
         birth_year_to: 1996
       - label: "Generation Z (1997–2012)"
