@@ -20,6 +20,8 @@ from metric_engine import (
     calculate_training_time_series,
 )
 
+st.caption("VERSION TEST 2026-09-08")
+
 st.set_page_config(
     page_title="HR Insight AI",
     page_icon="📊",
@@ -1294,14 +1296,20 @@ def workforce_composition_dates(start_date, end_date, granularity):
     if start == end:
         return [end]
 
-    if granularity == "automatic":
-        duration_days = (end - start).days
-        if duration_days <= 550:
-            granularity = "month"
-        elif duration_days <= 1825:
-            granularity = "quarter"
-        else:
-            granularity = "year"
+    granularity = resolve_workforce_granularity(
+        start,
+        end,
+        granularity,
+    )
+
+    if granularity == "half_year":
+        dates = []
+        for year in range(start.year, end.year + 1):
+            for month, day in ((6, 30), (12, 31)):
+                candidate = pd.Timestamp(year, month, day)
+                if start <= candidate <= end:
+                    dates.append(candidate)
+        return dates
 
     frequency = {
         "month": "M",
@@ -1316,6 +1324,30 @@ def workforce_composition_dates(start_date, end_date, granularity):
     return list(dict.fromkeys(dates))
 
 
+def resolve_workforce_granularity(start_date, end_date, granularity):
+    if granularity != "automatic":
+        return granularity
+    duration_days = (
+        pd.Timestamp(end_date) - pd.Timestamp(start_date)
+    ).days
+    if duration_days <= 730:
+        return "quarter"
+    if duration_days <= 2190:
+        return "half_year"
+    return "year"
+
+
+def workforce_period_label(snapshot_date, granularity):
+    snapshot_date = pd.Timestamp(snapshot_date)
+    if granularity == "quarter":
+        return snapshot_date.strftime("%Y-%m")
+    if granularity == "half_year":
+        return snapshot_date.strftime("%Y-%m")
+    if granularity == "year":
+        return str(snapshot_date.year)
+    return snapshot_date.strftime("%Y-%m")
+
+
 def build_workforce_composition(
     employee_data,
     grouping_field,
@@ -1325,6 +1357,11 @@ def build_workforce_composition(
     granularity,
 ):
     records = []
+    resolved_granularity = resolve_workforce_granularity(
+        start_date,
+        end_date,
+        granularity,
+    )
     for snapshot_date in workforce_composition_dates(
         start_date,
         end_date,
@@ -1354,7 +1391,10 @@ def build_workforce_composition(
         for group_value, count in counts.items():
             records.append({
                 "Dátum": snapshot_date,
-                "Időszak": snapshot_date.strftime("%Y-%m-%d"),
+                "Időszak": workforce_period_label(
+                    snapshot_date,
+                    resolved_granularity,
+                ),
                 "Csoport": str(group_value),
                 "Létszám": int(count),
                 "Arány": (
@@ -1410,7 +1450,11 @@ def render_workforce_composition(data, chart_type, grouping_field):
                     "Csoport:N",
                     title=grouping_field,
                     sort=group_order,
-                    legend=alt.Legend(labelLimit=260),
+                    legend=alt.Legend(
+                        orient="bottom",
+                        columns=1,
+                        labelLimit=300,
+                    ),
                 ),
                 order=alt.Order("Sorrend:Q", sort="ascending"),
                 tooltip=[
@@ -1426,9 +1470,21 @@ def render_workforce_composition(data, chart_type, grouping_field):
         value_title = "Megoszlás (%)" if chart_type == "stacked_100" else "Létszám (fő)"
         chart = (
             alt.Chart(data)
-            .mark_area()
+            .mark_bar()
             .encode(
-                x=alt.X("Dátum:T", title="Időpont"),
+                x=alt.X(
+                    "Időszak:N",
+                    title="Időszak záró hónapja",
+                    sort=alt.SortField(
+                        field="Dátum",
+                        order="ascending",
+                    ),
+                    axis=alt.Axis(
+                        labelAngle=-90,
+                        labelFontSize=9,
+                        labelOverlap=False,
+                    ),
+                ),
                 y=alt.Y(
                     f"{value_field}:Q",
                     title=value_title,
@@ -1439,7 +1495,11 @@ def render_workforce_composition(data, chart_type, grouping_field):
                     "Csoport:N",
                     title=grouping_field,
                     sort=group_order,
-                    legend=alt.Legend(labelLimit=260),
+                    legend=alt.Legend(
+                        orient="bottom",
+                        columns=1,
+                        labelLimit=300,
+                    ),
                 ),
                 order=alt.Order("Sorrend:Q", sort="ascending"),
                 tooltip=[
@@ -1452,6 +1512,12 @@ def render_workforce_composition(data, chart_type, grouping_field):
             .properties(height=400)
         )
     st.altair_chart(chart, width="stretch")
+    if chart_type != "pie":
+        st.caption(
+            "Minden oszlop az adott időszak zárónapi állományi "
+            "összetételét mutatja; a részletes értékek az oszlop fölé "
+            "húzva láthatók."
+        )
 
 
 def apply_question_filters(
