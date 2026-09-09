@@ -1,6 +1,6 @@
 catalog:
   name: "HR Dashboard AI-adatkatalógus"
-  version: "0.1.0"
+  version: "0.2.0"
   language: "hu"
   description: >-
     Géppel és ember által is olvasható tudásréteg a HR Dashboard három
@@ -52,6 +52,11 @@ global_ai_rules:
   - "Ha a kérdés többféleképpen értelmezhető, és ez érdemben befolyásolja az eredményt, pontosító kérdést kell feltenni."
   - "A válaszban meg kell különböztetni a tárolt tényt, a számított eredményt, a kimutatott összefüggést és a feltételezett magyarázatot."
   - "Kimutatott összefüggésből nem állapítható meg automatikusan ok-okozati kapcsolat."
+  - "A Mit mutatnak az adatok? blokkba csak ténylegesen kiszámított eredmény kerülhet."
+  - "A Hogyan értelmezhető? és a További összefüggések keresése AI-rétegek csak a felhasználó kifejezett kérésére jelenhetnek meg."
+  - "A További összefüggések keresése rétegben az AI csak dokumentált vizsgálati irányt választhat; a nyers adatok számítását a helyi Python végzi."
+  - "A tanácsadói rétegek nem módosíthatják az eredeti helyi Python-metrikamotor eredményét."
+  - "Hipotézis csak ténylegesen lefuttatott további elemzésből származó mintázatra épülhet, és nem állíthat okságot vagy bizonyított előrejelzést."
   - "Az elemzés nem terjedhet ki a hivatalos záródátum utáni időszakra."
 
 privacy_rules:

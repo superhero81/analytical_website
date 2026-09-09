@@ -13,6 +13,8 @@ from catalog_service import (
 )
 from datetime import date
 
+from insight_engine import get_discovery_catalog
+
 
 MODEL_NAMES = (
     "gemini-3.7-flash",
@@ -302,6 +304,26 @@ class QuestionPlan(BaseModel):
     reason: str
 
 
+class FollowupAnalysisItem(BaseModel):
+    analysis_id: Literal[
+        "engagement_group_differences",
+        "engagement_internal_correlations",
+        "engagement_exit_association",
+        "training_engagement_association",
+        "training_group_differences",
+        "turnover_group_differences",
+    ]
+    reason: str
+
+
+class FollowupAnalysisPlan(BaseModel):
+    analyses: list[FollowupAnalysisItem] = Field(
+        default_factory=list,
+        max_length=3,
+    )
+    overall_reason: str
+
+
 def build_routing_context():
     routes = get_routing_registry()
     metrics = get_metric_registry()
@@ -536,29 +558,23 @@ Szabályok:
     return response.parsed
 
 
-def interpret_results(question, result_payload, api_key):
-    client = genai.Client(api_key=api_key)
-    system_instruction = """
-Te egy óvatos HR-adatelemző vagy.
+def _get_analysis_rules(*rule_ids):
+    rules = load_catalogs()["analysis_rules"]["analysis_rules"]
+    selected = [
+        rule
+        for rule in rules
+        if rule.get("id") in rule_ids
+    ]
+    return selected
 
-Kizárólag a megadott aggregált eredményeket értelmezd magyarul.
-Írj legfeljebb 4 rövid mondatot.
-Emeld ki a legfontosabb szintet, változást vagy csoportkülönbséget.
-Ne találj ki okot, hiányzó adatot vagy szervezeti eseményt.
-Különítsd el a megfigyelt eredményt a lehetséges magyarázattól.
-Oksági következtetést ne adj.
-Kis elemszám vagy hiányzó adat esetén jelezd a bizonytalanságot.
-"""
-    prompt = (
-        "FELHASZNÁLÓI KÉRDÉS:\n"
-        + question
-        + "\n\nAGGREGÁLT EREDMÉNYEK:\n"
-        + json.dumps(
-            result_payload,
-            ensure_ascii=False,
-            default=str,
-        )
-    )
+
+def _generate_advisory_text(
+    system_instruction,
+    prompt,
+    api_key,
+    empty_response_message,
+):
+    client = genai.Client(api_key=api_key)
     response = None
     last_error = None
 
@@ -592,8 +608,198 @@ Kis elemszám vagy hiányzó adat esetén jelezd a bizonytalanságot.
         raise last_error
 
     if not response.text:
-        raise ValueError(
-            "Az AI nem adott szöveges értelmezést."
-        )
+        raise ValueError(empty_response_message)
 
     return response.text.strip()
+
+
+def interpret_results(question, result_payload, api_key):
+    relevant_rules = _get_analysis_rules(
+        "insight_layer_separation",
+        "advisory_interpretation",
+        "causal_inference_restriction",
+        "uncertainty_and_generalization",
+    )
+    system_instruction = """
+Te egy óvatos HR-insight elemző vagy.
+
+A feladatod kizárólag a már kiszámított eredmények MÁSODIK rétegének
+elkészítése: „Hogyan értelmezhető?”.
+
+Szabályok:
+- Ne számolj új eredményt, és ne találj ki adatot vagy szervezeti eseményt.
+- Ne ismételd meg részletesen a „Mit mutatnak az adatok?” blokk számait.
+- Lehetséges magyarázatokat és hipotéziseket adhatsz, de mindig bizonytalan,
+  feltételes nyelven.
+- Két jelenség együtt járását ne nevezd oknak, előjelnek vagy következménynek
+  tényként. Ilyen értelmezés csak vizsgálandó hipotézisként jelenhet meg.
+- Valódi előrejelző képességet csak külön prediktív vizsgálat alapján lehetne
+  állítani; ennek hiányában ezt ne sugalljad.
+- Oksági következtetést ne adj.
+- Jelezd a lényeges bizonytalanságot, elemszám-, lefedettségi vagy
+  adatértelmezési korlátot, ha a kapott eredmény ezt indokolja.
+- Ne adj cselekvési javaslatot; az külön harmadik réteg.
+- Legfeljebb 3 rövid felsoroláspontot írj magyarul.
+"""
+    prompt = (
+        "FELHASZNÁLÓI KÉRDÉS:\n"
+        + question
+        + "\n\nMÁR KISZÁMÍTOTT AGGREGÁLT EREDMÉNYEK:\n"
+        + json.dumps(
+            result_payload,
+            ensure_ascii=False,
+            default=str,
+        )
+        + "\n\nALKALMAZANDÓ MÓDSZERTANI SZABÁLYOK:\n"
+        + json.dumps(
+            relevant_rules,
+            ensure_ascii=False,
+            default=str,
+        )
+    )
+    return _generate_advisory_text(
+        system_instruction,
+        prompt,
+        api_key,
+        "Az AI nem adott szöveges értelmezést.",
+    )
+
+
+
+def plan_followup_analysis(
+    question,
+    result_payload,
+    analysis_context,
+    api_key,
+):
+    client = genai.Client(api_key=api_key)
+    available_analyses = get_discovery_catalog()
+    relevant_rules = _get_analysis_rules(
+        "insight_layer_separation",
+        "followup_discovery_analysis",
+        "statistical_significance",
+        "multiple_testing_correction",
+        "minimum_sample_for_inference",
+        "causal_inference_restriction",
+    )
+    system_instruction = """
+Te egy HR-adatelemzési vizsgálattervező vagy.
+
+A feladatod a már elkészült elemzés alapján legfeljebb 3 olyan TOVÁBBI
+helyi Python-vizsgálat kiválasztása, amely valóban segíthet rejtett
+összefüggést vagy fontos csoportkülönbséget feltárni.
+
+Szabályok:
+- Kizárólag az AVAILABLE_ANALYSES listában szereplő analysis_id-kat használd.
+- Ne számolj eredményt és ne találj ki összefüggést.
+- Csak olyan vizsgálatot válassz, amely érdemben kapcsolódik az eredeti
+  kérdéshez vagy a már kiszámított eredményhez.
+- Ne válassz minden lehetséges vizsgálatot automatikusan; 1–3 célzott irány legyen.
+- A keresztadatállományos elemzés csak akkor választható, ha az valóban hozzáad
+  az eredeti kérdés értelmezéséhez.
+- A reason röviden mondja meg, mit érdemes ellenőrizni; eredményt ne előlegezzen meg.
+- Ha egyik további vizsgálat sem indokolt, az analyses lista lehet üres.
+- Oksági vagy prediktív állítást ne tegyél.
+"""
+    prompt = (
+        "AVAILABLE_ANALYSES:\n"
+        + json.dumps(available_analyses, ensure_ascii=False, default=str)
+        + "\n\nFELHASZNÁLÓI KÉRDÉS:\n"
+        + question
+        + "\n\nMÁR KISZÁMÍTOTT EREDMÉNYEK:\n"
+        + json.dumps(result_payload, ensure_ascii=False, default=str)
+        + "\n\nELEMZÉSI KONTEXTUS:\n"
+        + json.dumps(analysis_context, ensure_ascii=False, default=str)
+        + "\n\nMÓDSZERTANI SZABÁLYOK:\n"
+        + json.dumps(relevant_rules, ensure_ascii=False, default=str)
+    )
+
+    response = None
+    last_error = None
+    for model_name in MODEL_NAMES:
+        try:
+            chat = client.chats.create(
+                model=model_name,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0,
+                    response_mime_type="application/json",
+                    response_schema=FollowupAnalysisPlan,
+                ),
+            )
+            response = chat.send_message(prompt)
+            break
+        except errors.ServerError as exc:
+            last_error = exc
+        except errors.ClientError as exc:
+            status_code = getattr(exc, "code", getattr(exc, "status_code", None))
+            if status_code == 429:
+                last_error = exc
+                continue
+            raise
+
+    if response is None:
+        raise last_error
+    if response.parsed is None:
+        raise ValueError("Az AI nem adott értelmezhető további elemzési tervet.")
+    return response.parsed
+
+
+def interpret_followup_analysis(
+    question,
+    original_result_payload,
+    followup_results,
+    analysis_context,
+    api_key,
+):
+    relevant_rules = _get_analysis_rules(
+        "insight_layer_separation",
+        "followup_discovery_analysis",
+        "advisory_interpretation",
+        "causal_inference_restriction",
+        "uncertainty_and_generalization",
+    )
+    system_instruction = """
+Te egy óvatos HR-insight elemző vagy.
+
+A feladatod a HARMADIK réteg elkészítése: „További összefüggések keresése”.
+A Python már lefuttatta a kiválasztott további vizsgálatokat. Te kizárólag ezek
+tényleges eredményeit értelmezheted.
+
+Szabályok:
+- Ne számolj új eredményt és ne találj ki adatot.
+- Először azt emeld ki, milyen statisztikailag ellenőrzött kapcsolat vagy
+  csoportkülönbség találtatott.
+- A corrected/adjusted p_value alapján tekints egy kapcsolatot
+  statisztikailag igazoltnak; 0,05 felett ne nevezd annak.
+- A hatásméretet vagy korrelációs együtthatót a p-érték mellett vedd figyelembe.
+- Ha nincs statisztikailag igazolt új kapcsolat, ezt mondd ki röviden; ne gyárts
+  hipotézist csak azért, hogy legyen.
+- Hipotézist csak ténylegesen talált mintázatra építs, és jelöld külön
+  „Hipotézis:” szóval.
+- A hipotézis nem lehet oksági tény vagy bizonyított előrejelzés.
+- A hipotézis után adhatsz célzott „További vizsgálati irány:” javaslatot,
+  amely megmondja, hogyan lehetne a hipotézist ellenőrizni.
+- Ne javasolj automatikusan HR-beavatkozást; előbb az összefüggés további
+  ellenőrzése legyen a fókusz.
+- Egyéni munkavállalóra ne tegyél következtetést.
+- Legfeljebb 3 rövid pontot írj magyarul.
+"""
+    prompt = (
+        "FELHASZNÁLÓI KÉRDÉS:\n"
+        + question
+        + "\n\nEREDETI KISZÁMÍTOTT EREDMÉNYEK:\n"
+        + json.dumps(original_result_payload, ensure_ascii=False, default=str)
+        + "\n\nPYTHONNAL LEFUTTATOTT TOVÁBBI VIZSGÁLATOK:\n"
+        + json.dumps(followup_results, ensure_ascii=False, default=str)
+        + "\n\nELEMZÉSI KONTEXTUS:\n"
+        + json.dumps(analysis_context, ensure_ascii=False, default=str)
+        + "\n\nMÓDSZERTANI SZABÁLYOK:\n"
+        + json.dumps(relevant_rules, ensure_ascii=False, default=str)
+    )
+    return _generate_advisory_text(
+        system_instruction,
+        prompt,
+        api_key,
+        "Az AI nem adott további összefüggés-értelmezést.",
+    )

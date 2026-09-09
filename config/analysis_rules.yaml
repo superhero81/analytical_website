@@ -738,3 +738,118 @@ analysis_rules:
 
     documentation_status: "confirmed"
 
+
+  - id: "insight_layer_separation"
+    label: "Elemzési és tanácsadói rétegek elkülönítése"
+    group: "reporting"
+
+    layers:
+      observed_results:
+        label: "Mit mutatnak az adatok?"
+        rule: >-
+          Ide kizárólag ténylegesen kiszámított mutatók, trendek,
+          csoportkülönbségek és statisztikailag ellenőrzött összefüggések
+          kerülhetnek. Két jelenség együtt járása itt kapcsolatként vagy
+          együttjárásként írható le, nem okként, előjelként vagy következményként.
+
+      interpretation:
+        label: "Hogyan értelmezhető?"
+        rule: >-
+          Lehetséges magyarázatokat és hipotéziseket tartalmazhat, de ezeket
+          egyértelműen bizonytalan, vizsgálandó értelmezésként kell megfogalmazni.
+          Oksági vagy valódi előrejelző képesség külön vizsgálat nélkül nem állítható.
+
+      followup_discovery:
+        label: "További összefüggések keresése"
+        rule: >-
+          Csak a felhasználó kifejezett kérésére jelenhet meg. Az AI kizárólag
+          előre definiált vizsgálati irányok közül választhat; a tényleges
+          további számításokat a helyi Python-motor végzi. Hipotézis csak a
+          lefuttatott vizsgálatok tényleges eredményére épülhet.
+
+    default_behavior: >-
+      Az első réteg az elemzés alapértelmezett része. A második és harmadik
+      réteg alapértelmezetten kikapcsolt. A második réteg egy AI-hívással,
+      a harmadik réteg jellemzően egy AI-tervezési és egy AI-értelmezési
+      hívással működik; a köztes számítást a helyi Python végzi.
+
+    documentation_status: "confirmed"
+
+  - id: "advisory_interpretation"
+    label: "Hipotézisalapú AI-értelmezés"
+    group: "interpretation"
+
+    rule: >-
+      Az AI a kiszámított eredményekhez lehetséges magyarázatokat adhat,
+      de minden ilyen állítást hipotézisként kell megfogalmaznia.
+
+    required_language:
+      - "lehetséges magyarázat"
+      - "hipotézis"
+      - "érdemes lehet külön megvizsgálni"
+
+    restrictions:
+      - "A megfigyelt együttjárás nem nevezhető bizonyított ok-okozati kapcsolatnak."
+      - "Egy változó nem nevezhető bizonyított előjelnek prediktív vizsgálat nélkül."
+      - "A későbbi esemény időbeli sorrendje önmagában nem bizonyít okságot."
+      - "Nem található ki hiányzó szervezeti esemény, vezetői döntés vagy HR-beavatkozás."
+      - "Ebben a rétegben cselekvési javaslat nem adható."
+
+    documentation_status: "confirmed"
+
+  - id: "followup_discovery_analysis"
+    label: "További összefüggések célzott keresése"
+    group: "interpretation"
+
+    availability_rule: >-
+      A blokk kizárólag a felhasználó kifejezett kérésére készülhet el,
+      miután az eredeti számított elemzés már rendelkezésre áll.
+
+    architecture_rule: >-
+      Az AI csak a további vizsgálati irányt választja ki egy dokumentált,
+      zárt elemzési menüből. A nyers adatokon végzett számítást és statisztikai
+      próbát minden esetben a helyi Python-kód hajtja végre.
+
+    current_supported_analyses:
+      - "Engagement-mutatók szervezeti és demográfiai csoportkülönbségei."
+      - "Engagement, elégedettség és work–life balance együttjárása."
+      - "Engagement-mutatók és a későbbi 12 havi önkéntes kilépés kapcsolata."
+      - "A megelőző 12 havi képzési aktivitás és a legutóbbi engagement-válasz kapcsolata."
+      - "Képzési visszajelzések szervezeti és demográfiai csoportkülönbségei."
+      - "A 12 havi önkéntes kilépés és munkavállalói csoportok kapcsolata."
+
+    statistical_rule: >-
+      A további elemzésekre ugyanazok az elemszám-, függetlenségi,
+      hatásméret- és többszörös tesztelési szabályok vonatkoznak, mint az
+      elsődleges elemzésekre. Explorációs sok tesztnél Benjamini–Hochberg
+      FDR-korrekció, tervezett néhány összehasonlításnál Holm-korrekció használható.
+
+    repeated_observation_rule: >-
+      Az ismételt engagement- és képzési rekordokat statisztikai vizsgálat előtt
+      munkavállalói szintre kell szűkíteni vagy aggregálni, kivéve ha a választott
+      módszer kifejezetten kezeli az ismételt megfigyeléseket.
+
+    hypothesis_rule: >-
+      Hipotézis csak akkor fogalmazható meg, ha a helyi Python-vizsgálat
+      tényleges mintázatot talált. A hipotézist külön, bizonytalan állításként
+      kell megjelölni, és nem írhatja át a számított eredményt.
+
+    no_signal_rule: >-
+      Ha a további vizsgálatok nem találnak statisztikailag igazolt vagy
+      módszertanilag értelmezhető új kapcsolatot, ezt kell közölni.
+      Ilyenkor nem kötelező hipotézist vagy javaslatot gyártani.
+
+    followup_direction_rule: >-
+      További vizsgálati irány csak a ténylegesen talált mintázat
+      ellenőrzésére, robusztusságának vizsgálatára vagy más időszakon/csoporton
+      történő validálására javasolható. HR-beavatkozás nem következhet
+      automatikusan egy feltárt együttjárásból.
+
+    restrictions:
+      - "Kimutatott együttjárás nem nevezhető bizonyított ok-okozati kapcsolatnak."
+      - "Egy változó nem nevezhető bizonyított előjelnek prediktív validáció nélkül."
+      - "A statisztikai szignifikancia nem azonos az üzleti jelentőséggel."
+      - "Egyéni munkavállalóra vonatkozó következtetés vagy intézkedés nem adható."
+      - "Az AI nem futtathat tetszőleges, saját maga által generált kódot a nyers HR-adatokon."
+
+    documentation_status: "confirmed"
