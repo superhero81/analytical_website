@@ -16,6 +16,7 @@ from metric_engine import (
     SUPPORTED_METRICS,
     TRAINING_TIME_SERIES_METRICS,
     calculate_engagement_time_series,
+    calculate_last_index_by_employment_status,
     calculate_metric,
     calculate_training_time_series,
 )
@@ -2290,6 +2291,74 @@ if st.button(
                         question_plan.metric_names
                     ):
                         if selected_metric not in SUPPORTED_METRICS:
+                            continue
+
+                        last_status_metrics = {
+                            "LastEngagementIndexByEmploymentStatus",
+                            "LastSatisfactionIndexByEmploymentStatus",
+                            "LastWorkLifeBalanceIndexByEmploymentStatus",
+                        }
+                        if selected_metric in last_status_metrics:
+                            status_result = (
+                                calculate_last_index_by_employment_status(
+                                    selected_metric,
+                                    analysis_employees,
+                                    analysis_engagement,
+                                    question_plan.end_date or reference_date,
+                                )
+                            )
+                            status_data = pd.DataFrame(
+                                status_result["records"]
+                            )
+                            status_chart = (
+                                alt.Chart(status_data)
+                                .mark_bar()
+                                .encode(
+                                    x=alt.X(
+                                        "Csoport:N",
+                                        title=None,
+                                        sort=[
+                                            "Referencia-időpontig kilépők",
+                                            "Referencia-időpontban állományban lévők",
+                                        ],
+                                        axis=alt.Axis(labelAngle=0),
+                                    ),
+                                    y=alt.Y(
+                                        "Érték:Q",
+                                        title="Indexpont a 0–100-as skálán",
+                                        scale=alt.Scale(domain=[0, 100]),
+                                    ),
+                                    color=alt.Color(
+                                        "Csoport:N",
+                                        legend=None,
+                                    ),
+                                    tooltip=[
+                                        alt.Tooltip("Csoport:N", title="Csoport"),
+                                        alt.Tooltip("Érték:Q", title="Index", format=".1f"),
+                                        alt.Tooltip("Válaszadók:Q", format=",.0f"),
+                                        alt.Tooltip("Jogosultak:Q", format=",.0f"),
+                                        alt.Tooltip("Lefedettség:Q", title="Lefedettség (%)", format=".1f"),
+                                    ],
+                                )
+                                .properties(height=350)
+                            )
+                            st.success(f"**{status_result['label']}**")
+                            st.altair_chart(status_chart, width="stretch")
+                            st.dataframe(
+                                status_data,
+                                hide_index=True,
+                                use_container_width=True,
+                            )
+                            st.caption(
+                                "Minden munkavállaló legfeljebb egyszer, a "
+                                "referencia-időpontig érvényes legutolsó "
+                                "válaszával szerepel. A csoportok válaszai "
+                                "eltérő időpontokból származhatnak."
+                            )
+                            interpretation_payload.append({
+                                "type": "last_index_by_employment_status",
+                                "data": status_result,
+                            })
                             continue
 
                         employee_composition_fields = {
