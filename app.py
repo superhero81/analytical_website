@@ -1,4 +1,5 @@
 from pathlib import Path
+from io import BytesIO
 import html
 import textwrap
 
@@ -21,13 +22,13 @@ from insight_engine import (
 from metric_engine import (
     SUPPORTED_METRICS,
     TRAINING_TIME_SERIES_METRICS,
+    WORKFORCE_TIME_SERIES_METRICS,
     calculate_engagement_time_series,
     calculate_last_index_by_employment_status,
     calculate_metric,
     calculate_training_time_series,
+    calculate_workforce_time_series,
 )
-
-st.caption("VERSION TEST 2026-09-09 FOLLOWUP V2")
 
 st.set_page_config(
     page_title="HR Insight AI",
@@ -38,10 +39,207 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    div[class*="st-key-kpi_"] button {
-        min-height: 125px;
-        padding: 14px 10px;
+    :root {
+        --hr-bg: #f3f6fa;
+        --hr-surface: #ffffff;
+        --hr-text: #172033;
+        --hr-muted: #5f6b7c;
+        --hr-border: #cbd5e1;
+        --hr-primary: #315f9f;
+        --hr-primary-dark: #244b82;
+        --hr-primary-soft: #eef4fb;
+        --hr-accent: #2f7b77;
+        --hr-shadow: 0 8px 24px rgba(23, 32, 51, 0.06);
+    }
+
+    .stApp {
+        background: var(--hr-bg);
+        color: var(--hr-text);
+    }
+
+    div[data-testid="stMainBlockContainer"] {
+        max-width: 1280px;
+        padding-top: 2rem;
+        padding-bottom: 4rem;
+    }
+
+    h1, h2, h3, h4 {
+        color: var(--hr-text);
+        letter-spacing: -0.02em;
+    }
+
+    .hr-hero {
+        background: linear-gradient(135deg, #ffffff 0%, #eef4fb 100%);
+        border: 1px solid var(--hr-border);
+        border-radius: 20px;
+        padding: 24px 28px 22px 28px;
+        box-shadow: var(--hr-shadow);
+        margin-bottom: 22px;
+    }
+
+    .hr-kicker, .hr-section-kicker {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        color: var(--hr-primary);
+    }
+
+    .hr-hero h1 {
+        margin: 5px 0 6px 0;
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1.05;
+    }
+
+    .hr-hero p {
+        margin: 0;
+        max-width: 760px;
+        color: var(--hr-muted);
+        font-size: 0.98rem;
+    }
+
+    .hr-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+    }
+
+    .hr-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.82);
+        border: 1px solid var(--hr-border);
+        color: #465267;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+
+    .hr-section-kicker {
+        margin: 8px 0 3px 0;
+    }
+
+    .hr-ai-intro {
+        border-top: 1px solid var(--hr-border);
+        padding-top: 26px;
+        margin-top: 28px;
+    }
+
+    div[data-testid="stSelectbox"] > div,
+    div[data-testid="stTextArea"] textarea {
+        border-radius: 10px;
+    }
+
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+        background: var(--hr-surface);
+        border: 1.5px solid #aebdd0;
+        box-shadow: 0 1px 3px rgba(23, 32, 51, 0.05);
+    }
+
+    div[data-testid="stSelectbox"] label p {
+        font-weight: 650;
+        color: #334155;
+    }
+
+    div[data-testid="stTextArea"] textarea {
+        background: var(--hr-surface);
+        border: 1.5px solid #b8c5d6;
+        box-shadow: 0 1px 3px rgba(23, 32, 51, 0.04);
+    }
+
+    div[data-testid="stTextArea"] textarea:focus {
+        border-color: var(--hr-primary);
+        box-shadow: 0 0 0 2px rgba(49, 95, 159, 0.10);
+    }
+
+    .hr-ai-field-label {
+        margin: 12px 0 7px 0;
+        font-size: 0.98rem;
+        line-height: 1.25;
+        font-weight: 700;
+        color: var(--hr-text);
+    }
+
+    .hr-starter-label {
+        margin: 2px 0 8px 0;
+        font-size: 0.98rem;
+        font-weight: 700;
+        color: var(--hr-text);
+    }
+
+    div[data-testid="stAlert"] {
         border-radius: 12px;
+        border-width: 1px;
+    }
+
+    div[data-testid="stDataFrame"] {
+        border: 1px solid var(--hr-border);
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--hr-surface);
+    }
+
+    div[data-testid="stExpander"] {
+        border: 1px solid var(--hr-border);
+        border-radius: 12px;
+        background: var(--hr-surface);
+    }
+
+    .hr-compact-divider {
+        height: 1px;
+        background: var(--hr-border);
+        margin: 18px 0 14px 0;
+    }
+
+    .hr-advisory-title {
+        margin: 0 0 6px 0;
+        font-size: 1.65rem;
+        line-height: 1.15;
+        font-weight: 750;
+        color: var(--hr-text);
+        letter-spacing: -0.02em;
+    }
+
+    .hr-advisory-caption {
+        margin: 0 0 12px 0;
+        color: var(--hr-muted);
+        line-height: 1.45;
+    }
+
+    div[data-testid="stExpander"] + div[data-testid="stElementContainer"] p {
+        margin-top: 0.35rem;
+    }
+
+    button[kind="secondary"] {
+        border-color: var(--hr-border);
+        background: var(--hr-surface);
+    }
+
+    button[kind="secondary"]:hover {
+        border-color: #b7c6da;
+        background: #f9fbfe;
+    }
+
+    div[class*="st-key-kpi_"] button {
+        min-height: 128px;
+        padding: 15px 11px;
+        border-radius: 13px;
+        border: 1.5px solid #b8c5d6;
+        border-top: 3px solid #91acd0;
+        background: var(--hr-surface);
+        box-shadow: 0 2px 7px rgba(23, 32, 51, 0.07);
+        cursor: pointer;
+        transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+
+    div[class*="st-key-kpi_"] button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(23, 32, 51, 0.11);
+        border-color: #7899c4;
+        border-top-color: var(--hr-primary);
     }
 
     div[class*="st-key-kpi_"] button p {
@@ -51,117 +249,169 @@ st.markdown(
     div[class*="st-key-kpi_"] button strong {
         display: inline-block;
         margin: 7px 0;
-        font-size: 1.45rem;
+        font-size: 1.48rem;
+        color: var(--hr-text);
     }
 
     div[class*="st-key-kpi_"] button em {
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         font-style: normal;
-        color: #6b7280;
+        color: var(--hr-muted);
     }
 
     div[class*="st-key-kpi_"] button[kind="primary"] {
-        background-color: #3568b8;
-        border-color: #3568b8;
+        background: linear-gradient(145deg, var(--hr-primary) 0%, #3f73b5 100%);
+        border-color: var(--hr-primary);
+        border-top-color: #183c6d;
+        color: white;
+        box-shadow: 0 8px 20px rgba(49, 95, 159, 0.18);
+    }
+
+    div[class*="st-key-kpi_"] button[kind="primary"] strong,
+    div[class*="st-key-kpi_"] button[kind="primary"] em {
         color: white;
     }
 
     div[class*="st-key-kpi_"] button[kind="primary"] em {
-        color: #e8eef9;
+        opacity: 0.86;
     }
 
-    div[class*="st-key-kpi_"] button[kind="primary"]:hover {
-        background-color: #2d5a9f;
-        border-color: #2d5a9f;
+    div[data-testid="stPills"] button {
+        border: 1px solid #b8c5d6;
+        background: var(--hr-surface);
+        font-weight: 600;
     }
 
-@media (max-width: 768px) {
-    div[data-testid="stMainBlockContainer"] {
-        padding-top: 9rem !important;
+    div[data-testid="stPills"] button:hover {
+        border-color: #7899c4;
+        background: var(--hr-primary-soft);
     }
 
-    div[data-testid="stHorizontalBlock"]:has(
-        div[class*="st-key-kpi_"]
-    ) {
-        flex-wrap: wrap;
-        gap: 12px;
+    div[data-testid="stPills"] button[aria-pressed="true"],
+    div[data-testid="stPills"] button[data-selected="true"],
+    div[class*="st-key-ai_starter_question"] button[kind="primary"] {
+        border-color: var(--hr-primary) !important;
+        background: var(--hr-primary) !important;
+        color: white !important;
     }
 
-    div[data-testid="stHorizontalBlock"]:has(
-        div[class*="st-key-kpi_"]
-    ) > div[data-testid="stColumn"] {
-        flex: 0 0 calc(50% - 6px) !important;
-        width: calc(50% - 6px) !important;
-        min-width: 0 !important;
+    div[class*="st-key-ai_question_button"] button,
+    div[class*="st-key-ai_clarification_button"] button {
+        border-radius: 10px;
+        font-weight: 650;
     }
 
-    div[data-testid="stHorizontalBlock"]:has(
-        div[class*="st-key-kpi_"]
-    ) > div[data-testid="stColumn"]:nth-child(5) {
-        margin-left: auto;
-        margin-right: auto;
-    }
+    @media (max-width: 768px) {
+        div[data-testid="stMainBlockContainer"] {
+            padding-top: 1rem !important;
+            padding-left: 0.85rem !important;
+            padding-right: 0.85rem !important;
+        }
 
-    div[class*="st-key-kpi_"] button {
-        min-height: 105px;
-        padding: 8px 5px;
-    }
+        .hr-hero {
+            padding: 18px 17px 17px 17px;
+            border-radius: 16px;
+            margin-bottom: 16px;
+        }
 
-    div[class*="st-key-kpi_"] button strong {
-        margin: 5px 0;
-        font-size: 1.25rem;
-    }
+        .hr-hero h1 {
+            font-size: 2rem;
+        }
 
-    div[class*="st-key-kpi_"] button em {
-        font-size: 0.68rem;
-    }
+        .hr-hero p {
+            font-size: 0.9rem;
+        }
 
-    div[data-testid="stElementContainer"]:has(
-        .st-key-reference_month
-    ):has(
-        .st-key-department_filter
-    ) {
-        display: contents !important;
-    }
+        .hr-chip-row {
+            gap: 6px;
+            margin-top: 12px;
+        }
 
-    div[data-testid="stHorizontalBlock"]:has(
-        .st-key-reference_month
-    ):has(
-        .st-key-department_filter
-    ) {
-        position: fixed !important;
-        top: 3.25rem !important;
-        left: 1rem !important;
-        right: 1rem !important;
-        width: auto !important;
-        z-index: 999999 !important;
-        flex-wrap: nowrap;
-        gap: 8px;
-        padding: 6px 8px 8px 8px !important;
-        background-color: white !important;
-        border-bottom: 1px solid #d9dee7 !important;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.10) !important;
-    }
+        .hr-chip {
+            font-size: 0.7rem;
+            padding: 5px 8px;
+        }
 
-    div[data-testid="stHorizontalBlock"]:has(
-        .st-key-reference_month
-    ):has(
-        .st-key-department_filter
-    ) > div[data-testid="stColumn"] {
-        flex: 0 0 calc(50% - 4px) !important;
-        width: calc(50% - 4px) !important;
-        min-width: 0 !important;
-    }
+        /* Dashboard-szűrők: mobilon teljes szélesség, normál dokumentumfolyamban. */
+        div[data-testid="stHorizontalBlock"]:has(
+            .st-key-reference_month
+        ):has(
+            .st-key-department_filter
+        ) {
+            flex-wrap: wrap !important;
+            gap: 2px !important;
+        }
 
-    div[data-testid="stHorizontalBlock"]:has(
-        .st-key-reference_month
-    ):has(
-        .st-key-department_filter
-    ) label p {
-        font-size: 0.72rem;
-    }
-}
+        div[data-testid="stHorizontalBlock"]:has(
+            .st-key-reference_month
+        ):has(
+            .st-key-department_filter
+        ) > div[data-testid="stColumn"] {
+            flex: 0 0 100% !important;
+            width: 100% !important;
+            min-width: 0 !important;
+        }
 
+        div[data-testid="stHorizontalBlock"]:has(
+            div[class*="st-key-kpi_"]
+        ) {
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        div[data-testid="stHorizontalBlock"]:has(
+            div[class*="st-key-kpi_"]
+        ) > div[data-testid="stColumn"] {
+            flex: 0 0 calc(50% - 5px) !important;
+            width: calc(50% - 5px) !important;
+            min-width: 0 !important;
+        }
+
+        div[data-testid="stHorizontalBlock"]:has(
+            div[class*="st-key-kpi_"]
+        ) > div[data-testid="stColumn"]:nth-child(5) {
+            flex-basis: 100% !important;
+            width: 100% !important;
+        }
+
+        div[class*="st-key-kpi_"] button {
+            min-height: 106px;
+            padding: 9px 6px;
+        }
+
+        div[class*="st-key-kpi_"] button strong {
+            margin: 5px 0;
+            font-size: 1.22rem;
+        }
+
+        div[class*="st-key-kpi_"] button em {
+            font-size: 0.67rem;
+        }
+
+        /* A kezdő kérdések pill-gombként automatikusan tördelődnek mobilon. */
+
+        /* AI insight kapcsolók: mobilon egymás alatt. */
+        div[data-testid="stHorizontalBlock"]:has(
+            div[class*="st-key-ai_interpretation_requested_"]
+        ) {
+            flex-wrap: wrap !important;
+        }
+
+        div[data-testid="stHorizontalBlock"]:has(
+            div[class*="st-key-ai_interpretation_requested_"]
+        ) > div[data-testid="stColumn"] {
+            flex: 0 0 100% !important;
+            width: 100% !important;
+        }
+
+        h2 {
+            font-size: 1.35rem !important;
+        }
+
+        h3 {
+            font-size: 1.12rem !important;
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -252,9 +502,30 @@ hungarian_months = {
     12: "december"
 }
 
-st.title("HR Insight AI")
+st.markdown(
+    """
+    <div class="hr-hero">
+        <div class="hr-kicker">HR analytics · AI-assisted</div>
+        <h1>HR Insight AI</h1>
+        <p>
+            Interaktív HR-dashboard és kérdezhető elemzőfelület. Az AI a kérdést
+            értelmezi és insightot készít, a számításokat a helyi Python-motor végzi.
+        </p>
+        <div class="hr-chip-row">
+            <span class="hr-chip">Adatzárás · 2026-06-30</span>
+            <span class="hr-chip">Employee · Engagement · Training</span>
+            <span class="hr-chip">Minimum csoportméret · 4 fő</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 @st.fragment
 def render_dashboard_section():
+    st.markdown(
+        '<div class="hr-section-kicker">01 · Dashboard</div>',
+        unsafe_allow_html=True,
+    )
     # A dashboard saját, lokális adatnézetet használ.
     # A szűrők nem módosítják az AI-elemzéshez használt teljes adatállományokat.
     employees = all_employees.copy()
@@ -1641,6 +1912,10 @@ def _metric_short_label(metric_name, label):
         "AverageSatisfactionIndex": "Elégedettség",
         "AverageWorkLifeBalanceIndex": "Work–life balance",
         "SurveyResponseRate": "Válaszadási arány",
+        "HireCount": "Belépők",
+        "ExitCount": "Kilépők",
+        "ClosingHeadcount": "Zárólétszám",
+        "AverageHeadcount": "Átlagos létszám",
         "SatisfactionLow2BoxRate": "Elégedettség Low2Box",
         "AverageOverallSatisfactionIndex": "Képzési elégedettség",
         "AverageTrainerEvaluationIndex": "Oktatói értékelés",
@@ -1786,6 +2061,96 @@ def build_combined_engagement_time_series(
             "tartalmazó idősoros eredmény."
         )
     return pd.DataFrame(records)
+
+
+def build_combined_workforce_time_series(
+    question_plan,
+    employee_data,
+    filter_label,
+):
+    if question_plan.comparison_groups:
+        raise ValueError(
+            "A felmérés utáni kilépői összehasonlítás csak "
+            "engagement-idősornál használható."
+        )
+
+    grouping_specs = [(filter_label, employee_data)]
+    employee_group_fields = {
+        "DepartmentType",
+        "GenderCode",
+        "Generation",
+        "AgeGroup",
+    }
+    if question_plan.groupings:
+        grouping = question_plan.groupings[0]
+        if grouping.field not in employee_group_fields:
+            raise ValueError(
+                f"Nem támogatott munkaerő-idősoros bontás: {grouping.field}"
+            )
+        dimensioned = add_demographic_dimensions(
+            employee_data,
+            question_plan.end_date or AI_DEFAULT_REFERENCE_DATE,
+        )
+        values = sorted(
+            dimensioned[grouping.field].dropna().unique()
+        )
+        if grouping.values:
+            values = [
+                value for value in values
+                if value in grouping.values
+            ]
+        grouping_specs = [
+            (
+                value,
+                dimensioned[
+                    dimensioned[grouping.field] == value
+                ],
+            )
+            for value in values
+        ]
+
+    records = []
+    for group_label, group_employees in grouping_specs:
+        for metric_name in question_plan.metric_names:
+            if metric_name not in WORKFORCE_TIME_SERIES_METRICS:
+                continue
+            try:
+                result = calculate_workforce_time_series(
+                    metric_name,
+                    group_employees,
+                    question_plan.start_date,
+                    question_plan.end_date,
+                    granularity=question_plan.time_granularity,
+                    official_cutoff_date=str(AI_DEFAULT_REFERENCE_DATE),
+                )
+            except ValueError:
+                continue
+
+            metric_short = _metric_short_label(
+                result["metric_name"], result["label"]
+            )
+            for record in result["records"]:
+                records.append({
+                    **record,
+                    "RespondentCount": None,
+                    "Metric": result["label"],
+                    "MetricShort": metric_short,
+                    "MetricLegend": _wrap_legend_label(metric_short),
+                    "MetricName": result["metric_name"],
+                    "Unit": result["unit"],
+                    "Axis": _axis_key(result["unit"]),
+                    "Group": group_label,
+                    "GroupLegend": _wrap_legend_label(group_label),
+                    "Series": f"{result['label']} – {group_label}",
+                })
+
+    if not records:
+        raise ValueError(
+            "Nincs megjeleníthető, legalább 4 főt tartalmazó "
+            "munkaerő-idősoros eredmény."
+        )
+    return pd.DataFrame(records)
+
 
 
 def build_combined_training_time_series(
@@ -1951,7 +2316,11 @@ def _time_series_layer(
             y=alt.Y(
                 "Value:Q",
                 title=axis_name,
-                scale=alt.Scale(domain=domain, zero=False),
+                scale=(
+                    alt.Scale(domain=domain, zero=False)
+                    if domain is not None
+                    else alt.Scale(zero=False)
+                ),
                 axis=alt.Axis(orient=orient),
             ),
             color=alt.Color(
@@ -2103,20 +2472,11 @@ def render_combined_time_series(data, chart_layout):
         show_custom_legend()
 
 
-st.divider()
+st.markdown(
+    '<div class="hr-ai-intro"><div class="hr-section-kicker">02 · AI Insight</div></div>',
+    unsafe_allow_html=True,
+)
 st.header("Kérdezd a HR-adatokat")
-
-st.caption(
-    "Fejlesztési teszt: az AI értelmezi a kérdést, "
-    "a már bekötött mutatókat pedig az alkalmazás "
-    "az adatbázisból számítja ki."
-)
-
-st.caption(
-    "A számított eredmény mindig helyben készül. Az AI-értelmezés és "
-    "a további összefüggések keresése csak az elkészült elemzés után, "
-    "külön kérésre és AI-kredittel kérhető."
-)
 
 if "pending_ai_question" not in st.session_state:
     st.session_state.pending_ai_question = None
@@ -2131,6 +2491,147 @@ if "analysis_sequence" not in st.session_state:
     st.session_state.analysis_sequence = 0
 
 
+def render_ai_field_label(label):
+    st.markdown(
+        f'<div class="hr-ai-field-label">{html.escape(label)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _format_export_value(value):
+    if value is None:
+        return "nincs adat"
+    if isinstance(value, float):
+        return f"{value:.2f}".replace(".", ",")
+    return str(value)
+
+
+def build_analysis_export(context):
+    analysis_id = context["analysis_id"]
+    lines = [
+        "HR Insight AI – elemzés",
+        "=" * 26,
+        "",
+        f"Kérdés: {context.get('question', '')}",
+        f"Időszak vége / referencia-időpont: {context.get('end_date', '')}",
+        f"Szűrés: {context.get('filter', 'Nincs')}",
+        "",
+        "MIT MUTATNAK AZ ADATOK?",
+        "-" * 24,
+    ]
+
+    for item in context.get("result_payload", []):
+        metric = item.get("metric") or item.get("label") or item.get("type", "Eredmény")
+        unit = item.get("unit", "")
+        if "value" in item:
+            value = item.get("value")
+            if isinstance(value, dict):
+                lines.append(f"{metric}:")
+                for group, group_value in value.items():
+                    lines.append(
+                        f"  - {group}: {_format_export_value(group_value)} {unit}".rstrip()
+                    )
+            else:
+                lines.append(
+                    f"- {metric}: {_format_export_value(value)} {unit}".rstrip()
+                )
+            valid_n = item.get("valid_response_count")
+            if valid_n is not None:
+                lines.append(f"  Érvényes elemszám: {valid_n}")
+        elif item.get("type") == "last_index_by_employment_status":
+            data = item.get("data", {})
+            lines.append(f"{data.get('label', metric)}:")
+            for record in data.get("records", []):
+                lines.append(
+                    "  - "
+                    f"{record.get('Csoport')}: "
+                    f"{_format_export_value(record.get('Érték'))}; "
+                    f"válaszadók: {record.get('Válaszadók', '')}"
+                )
+        elif isinstance(item.get("data"), list):
+            lines.append(f"{metric}: {len(item['data'])} soros részletes eredmény.")
+        else:
+            lines.append(f"- {metric}")
+
+    interpretation_key = f"ai_interpretation_text_{analysis_id}"
+    if interpretation_key in st.session_state:
+        lines.extend([
+            "",
+            "HOGYAN ÉRTELMEZHETŐ?",
+            "-" * 22,
+            st.session_state[interpretation_key],
+        ])
+
+    discovery_key = f"ai_discovery_text_{analysis_id}"
+    if discovery_key in st.session_state:
+        lines.extend([
+            "",
+            "TOVÁBBI ÖSSZEFÜGGÉSEK KERESÉSE",
+            "-" * 33,
+            st.session_state[discovery_key],
+        ])
+
+    return "\n".join(str(line) for line in lines)
+
+
+def _excel_bytes(dataframe):
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        dataframe.to_excel(writer, index=False, sheet_name="Adatok")
+    return buffer.getvalue()
+
+
+def render_downloadable_table(
+    dataframe,
+    key_prefix,
+    filename_stem,
+    column_config=None,
+):
+    table = dataframe.copy()
+    st.dataframe(
+        table,
+        hide_index=True,
+        use_container_width=True,
+        column_config=column_config,
+    )
+
+    csv_bytes = table.to_csv(index=False).encode("utf-8-sig")
+    excel_bytes = _excel_bytes(table)
+
+    download_columns = st.columns([1, 1, 1.15])
+    download_columns[0].download_button(
+        "CSV letöltése",
+        data=csv_bytes,
+        file_name=f"{filename_stem}.csv",
+        mime="text/csv",
+        key=f"{key_prefix}_csv",
+        use_container_width=True,
+    )
+    download_columns[1].download_button(
+        "Excel letöltése",
+        data=excel_bytes,
+        file_name=f"{filename_stem}.xlsx",
+        mime=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
+        key=f"{key_prefix}_xlsx",
+        use_container_width=True,
+    )
+    with download_columns[2].popover(
+        "Másolható változat",
+        use_container_width=True,
+    ):
+        st.caption(
+            "A jobb felső másolás ikonnal a teljes táblázat "
+            "tabulátorral tagolt formában másolható."
+        )
+        st.code(
+            table.to_csv(index=False, sep="\t"),
+            language=None,
+        )
+
+
 @st.fragment
 def render_ai_advisory_controls():
     context = st.session_state.get("last_analysis_context")
@@ -2142,12 +2643,18 @@ def render_ai_advisory_controls():
     question = context["question"]
     api_key = st.secrets.get("GEMINI_API_KEY")
 
-    st.markdown("---")
-    st.subheader("További AI-insight")
-    st.caption(
-        "Mindkét réteg opcionális. Az AI-értelmezés csak a meglévő eredményt "
-        "értelmezi. A további összefüggés-keresés új helyi Python-vizsgálatokat "
-        "futtat, de az eredeti elemzést nem számolja újra."
+    st.markdown('<div class="hr-compact-divider"></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="hr-advisory-title">További AI-insight</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="hr-advisory-caption">'
+        'Mindkét réteg opcionális. Az AI-értelmezés csak a meglévő eredményt '
+        'értelmezi. A további összefüggés-keresés új helyi Python-vizsgálatokat '
+        'futtat, de az eredeti elemzést nem számolja újra.'
+        '</div>',
+        unsafe_allow_html=True,
     )
 
     interpretation_toggle_key = f"ai_interpretation_requested_{analysis_id}"
@@ -2280,10 +2787,10 @@ def render_ai_advisory_controls():
 
                         discovery_results = st.session_state[discovery_results_key]
                         summary = summarize_followup_results(discovery_results)
-                        st.dataframe(
+                        render_downloadable_table(
                             summary,
-                            hide_index=True,
-                            use_container_width=True,
+                            key_prefix=f"discovery_summary_{analysis_id}",
+                            filename_stem="hr_ai_tovabbi_vizsgalatok",
                             column_config={
                                 "Korrigált p": st.column_config.NumberColumn(format="%.4f"),
                                 "Hatás / kapcsolat": st.column_config.NumberColumn(format="%.3f"),
@@ -2323,17 +2830,41 @@ def render_ai_advisory_controls():
                     "Kapcsold ki, majd be a kapcsolót az újrapróbáláshoz."
                 )
 
+    with st.expander("Mentés és megosztás"):
+        export_text = build_analysis_export(context)
+        st.download_button(
+            "Elemzés letöltése (.txt)",
+            data=export_text,
+            file_name=f"hr_insight_elemzes_{analysis_id}.txt",
+            mime="text/plain",
+            use_container_width=False,
+        )
+        st.caption(
+            "A lenti másolható változatot egy kattintással vágólapra teheted, "
+            "majd beillesztheted e-mailbe vagy dokumentumba."
+        )
+        st.code(
+            export_text,
+            language=None,
+            wrap_lines=True,
+        )
+
 
 is_clarification = (
     st.session_state.pending_ai_question is not None
 )
 
 
-def set_ai_example_question(question):
-    st.session_state.ai_question = question
+def handle_ai_starter_question(starter_questions):
+    selected = st.session_state.get("ai_starter_question")
+    if not selected:
+        return
+    st.session_state.ai_question = starter_questions[selected]
+    # A gyorsgomb csak indítson kérdést, ne maradjon kijelölve.
+    st.session_state.ai_starter_question = None
 
 if is_clarification:
-    st.markdown("**Eredeti kérdés:**")
+    render_ai_field_label("Eredeti kérdés")
     st.markdown(
         f"> {st.session_state.pending_ai_question}"
     )
@@ -2341,6 +2872,7 @@ if is_clarification:
         st.session_state.pending_clarification_question
         or "Kérlek, pontosítsd a kérésedet."
     )
+    render_ai_field_label("Válasz a pontosító kérdésre")
     ai_question = st.text_area(
         "Válasz a pontosító kérdésre",
         placeholder="Írd ide a pontosítást...",
@@ -2348,46 +2880,40 @@ if is_clarification:
             "ai_clarification_answer_"
             f"{st.session_state.clarification_round}"
         ),
+        label_visibility="collapsed",
     )
 else:
-    example_questions = (
-        (
-            "Mit kérdezhetek?",
-            "Milyen kérdéseket tehetek fel?",
-        ),
-        (
-            "Milyen idősorok vannak?",
-            "Milyen idősorokat tudsz mutatni?",
-        ),
-        (
-            "Munkaerő-elemzések",
+    starter_questions = {
+        "Mit kérdezhetek?": "Milyen kérdéseket tehetek fel?",
+        "Milyen idősorok vannak?": "Milyen idősorokat tudsz mutatni?",
+        "Munkaerő-elemzések": (
             "Milyen jellemzőket tudsz elemezni a "
             "munkavállalókkal kapcsolatban?"
         ),
-        (
-            "Engagement-elemzések",
+        "Engagement-elemzések": (
             "Milyen jellemzőket tudsz elemezni az "
             "engagementtel kapcsolatban?"
         ),
-        (
-            "Képzési elemzések",
+        "Képzési elemzések": (
             "Milyen jellemzőket tudsz elemezni a "
             "képzésekkel kapcsolatban?"
         ),
+    }
+    st.markdown(
+        '<div class="hr-starter-label">Kezdd ezzel!</div>',
+        unsafe_allow_html=True,
     )
-    example_columns = st.columns(5)
-    for question_index, (
-        column,
-        (button_label, example_question),
-    ) in enumerate(zip(example_columns, example_questions)):
-        column.button(
-            button_label,
-            key=f"ai_example_{question_index}",
-            on_click=set_ai_example_question,
-            args=(example_question,),
-            use_container_width=True,
-        )
+    st.pills(
+        "Kezdd ezzel!",
+        options=list(starter_questions.keys()),
+        selection_mode="single",
+        key="ai_starter_question",
+        label_visibility="collapsed",
+        on_change=handle_ai_starter_question,
+        args=(starter_questions,),
+    )
 
+    render_ai_field_label("Mit szeretnél megtudni?")
     ai_question = st.text_area(
         "Mit szeretnél megtudni?",
         placeholder=(
@@ -2395,13 +2921,14 @@ else:
             "létszám 2026 első félévében?"
         ),
         key="ai_question",
+        label_visibility="collapsed",
     )
 
 if st.button(
     (
         "Pontosítás elküldése"
         if is_clarification
-        else "Kérdés értelmezése"
+        else "Elemzés indítása"
     ),
     key=(
         "ai_clarification_button"
@@ -2452,7 +2979,7 @@ if st.button(
             question_for_planning = ai_question
 
         try:
-            with st.spinner("A kérdés értelmezése..."):
+            with st.spinner("Az elemzés előkészítése..."):
                 question_plan = plan_question(
                     question_for_planning,
                     st.secrets["GEMINI_API_KEY"]
@@ -2506,6 +3033,9 @@ if st.button(
 
                     st.subheader("Mit mutatnak az adatok?")
 
+                    # Reserve the identifier before rendering any result widgets.
+                    # Download-button keys need it during the same run.
+                    analysis_id = st.session_state.analysis_sequence + 1
                     interpretation_payload = []
                     combined_time_series_rendered = False
                     workforce_composition_rendered = False
@@ -2574,10 +3104,10 @@ if st.button(
                                     status_chart,
                                     width="stretch",
                                 )
-                            st.dataframe(
+                            render_downloadable_table(
                                 status_data,
-                                hide_index=True,
-                                use_container_width=True,
+                                key_prefix=f"employment_status_{selected_metric}_{analysis_id}",
+                                filename_stem="hr_employment_status_osszehasonlitas",
                             )
                             st.caption(
                                 "Minden munkavállaló legfeljebb egyszer, a "
@@ -2638,10 +3168,10 @@ if st.button(
                                 grouping.field,
                             )
                             with st.expander("Részletes adatok"):
-                                st.dataframe(
+                                render_downloadable_table(
                                     composition_data,
-                                    hide_index=True,
-                                    use_container_width=True,
+                                    key_prefix=f"workforce_composition_{analysis_id}",
+                                    filename_stem="hr_munkavallaloi_osszetetel",
                                 )
                             st.caption(
                                 "Az 1–3 fős csoporteredmények nem jelennek meg."
@@ -2668,19 +3198,30 @@ if st.button(
                                 requested_supported_metrics
                                 & TRAINING_TIME_SERIES_METRICS
                             )
+                            requested_workforce_metrics = (
+                                requested_supported_metrics
+                                & WORKFORCE_TIME_SERIES_METRICS
+                            )
                             if (
                                 requested_training_metrics
                                 and requested_training_metrics
                                 != requested_supported_metrics
+                            ) or (
+                                requested_workforce_metrics
+                                and requested_workforce_metrics
+                                != requested_supported_metrics
                             ):
                                 raise ValueError(
-                                    "Az engagement- és képzési idősorok "
-                                    "eltérő időalapúak, ezért külön ábrán "
-                                    "kell megjeleníteni őket."
+                                    "A munkaerő-, engagement- és képzési "
+                                    "idősorok eltérő időalapúak, ezért "
+                                    "külön ábrán kell megjeleníteni őket."
                                 )
 
                             is_training_time_series = bool(
                                 requested_training_metrics
+                            )
+                            is_workforce_time_series = bool(
+                                requested_workforce_metrics
                             )
                             if is_training_time_series:
                                 time_series_data = (
@@ -2688,6 +3229,14 @@ if st.button(
                                         question_plan,
                                         analysis_employees,
                                         analysis_training,
+                                        analysis_filter_label,
+                                    )
+                                )
+                            elif is_workforce_time_series:
+                                time_series_data = (
+                                    build_combined_workforce_time_series(
+                                        question_plan,
+                                        analysis_employees,
                                         analysis_filter_label,
                                     )
                                 )
@@ -2721,19 +3270,26 @@ if st.button(
                                         "RespondentCount",
                                         "ParticipantCount",
                                         "RecordCount",
+                                        "PopulationCount",
                                     ]
                                     if column in time_series_data.columns
                                 ]
-                                st.dataframe(
+                                render_downloadable_table(
                                     time_series_data[table_columns],
-                                    hide_index=True,
-                                    use_container_width=True,
+                                    key_prefix=f"combined_timeseries_{analysis_id}",
+                                    filename_stem="hr_idosoros_adatok",
                                 )
                             if is_training_time_series:
                                 st.caption(
                                     "Az 1–3 résztvevőt vagy érvényes "
                                     "visszajelzést tartalmazó képzési "
                                     "csoportpontok nem jelennek meg."
+                                )
+                            elif is_workforce_time_series:
+                                st.caption(
+                                    "A 2026-os éves adat csak 2026. június 30-ig "
+                                    "tartalmaz eseményeket. Az 1–3 fős "
+                                    "munkavállalói csoportok eredménye nem jelenik meg."
                                 )
                             else:
                                 st.caption(
@@ -2937,15 +3493,15 @@ if st.button(
                                 with st.expander(
                                     "Idősoros adatok"
                                 ):
-                                    st.dataframe(
+                                    render_downloadable_table(
                                         time_series_data[[
                                             "SurveyWaveID",
                                             "Group",
                                             "Value",
                                             "RespondentCount",
                                         ]],
-                                        hide_index=True,
-                                        use_container_width=True,
+                                        key_prefix=f"grouped_timeseries_{selected_metric}_{analysis_id}",
+                                        filename_stem="hr_idosoros_csoportadatok",
                                     )
                                 st.caption(
                                     "Az 1–3 érvényes választ "
@@ -3130,10 +3686,10 @@ if st.button(
                                     comparison_chart,
                                     width="stretch"
                                 )
-                            st.dataframe(
+                            render_downloadable_table(
                                 comparison_data,
-                                hide_index=True,
-                                use_container_width=True,
+                                key_prefix=f"comparison_{selected_metric}_{analysis_id}",
+                                filename_stem="hr_csoport_osszehasonlitas",
                             )
                             st.caption(
                                 "Az 1–3 fős csoporteredmények nem "
@@ -3176,16 +3732,16 @@ if st.button(
                             st.success(
                                 f"**{metric_result['label']}**"
                             )
-                            st.dataframe(
+                            render_downloadable_table(
                                 grouped_result,
-                                hide_index=True,
-                                use_container_width=True,
+                                key_prefix=f"grouped_result_{selected_metric}_{analysis_id}",
+                                filename_stem="hr_csoportos_eredmeny",
                                 column_config={
                                     "Érték": st.column_config.NumberColumn(
                                         "Költség (USD)",
                                         format="%.2f"
                                     )
-                                }
+                                },
                             )
 
                         elif metric_result["unit"] == "százalék":

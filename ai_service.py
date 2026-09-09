@@ -33,8 +33,40 @@ def _normalized_text(text):
 
 
 def get_local_capability_answer(question):
-    """Return a quota-free answer for capability-list questions."""
+    """Return quota-free answers for local capability and company-context questions."""
     text = _normalized_text(question)
+
+    company_phrases = (
+        "mivel foglalkozik a vallalat",
+        "mi a vallalat profilja",
+        "milyen ceg a vallalat",
+        "mit csinal a vallalat",
+        "mivel foglalkozik a ceg",
+    )
+    if any(phrase in text for phrase in company_phrases):
+        organization_context = (
+            load_catalogs()
+            .get("catalog", {})
+            .get("organization_context", {})
+        )
+        organization_type = organization_context.get(
+            "organization_type",
+            "fiktív ipari-technológiai nagyvállalat",
+        )
+        description = organization_context.get(
+            "description",
+            (
+                "A vállalat ipari berendezéseket és intelligens műszaki "
+                "megoldásokat gyárt. Saját termelési, értékesítési, "
+                "informatikai, adat- és szoftverfejlesztési területekkel "
+                "rendelkezik."
+            ),
+        ).strip()
+        return (
+            f"A demóban szereplő vállalat egy **{organization_type}**. "
+            f"{description}"
+        )
+
     capability_phrases = (
         "mit tudsz elemezni",
         "miket tudsz elemezni",
@@ -61,6 +93,8 @@ def get_local_capability_answer(question):
     ):
         return (
             "**Jelenleg az alábbi idősorokat tudom megjeleníteni:**\n\n"
+            "- **Munkaerő és fluktuáció:** létszám, belépők, kilépők és "
+            "fluktuáció havi, negyedéves vagy éves bontásban.\n"
             "- **Engagement:** elkötelezettség, elégedettség, work–life "
             "balance, Top2Box-, Low2Box- és válaszadási arány felmérési "
             "hullámonként.\n"
@@ -69,9 +103,7 @@ def get_local_capability_answer(question):
             "- **Csoportos összehasonlítás:** szervezeti, demográfiai, "
             "képzési vagy későbbi kilépés szerinti bontásban.\n"
             "- **Közös ábra:** több mutató és több csoport együttes "
-            "megjelenítésével.\n\n"
-            "A munkaerő- és fluktuációs idősorok még nincsenek teljesen "
-            "bekötve az AI-felületre."
+            "megjelenítésével."
         )
 
     if any(word in text for word in ("kepzes", "training")):
@@ -469,6 +501,14 @@ Szabályok:
 - Ha nincs ilyen kimeneti csoport-összehasonlítás, a comparison_groups legyen üres.
 - Ha a kérdés időbeli alakulásra, trendre vagy teljes idősorra kérdez,
   az output_type legyen time_series.
+- Munkaerő-idősornál a HireCount és ExitCount együtt is kérhető. A „bármely
+  okból kilépők” az ExitCount mutatót jelenti, nem csak az önkéntes kilépést.
+- Ha a felhasználó „minden elérhető évre”, „az összes elérhető évre” vagy
+  „a teljes elérhető időszakra” kér munkaerő-idősort, a time_granularity legyen
+  year, az end_date legyen 2026-06-30, a start_date pedig maradhat üres; a
+  helyi Python-motor az első rendelkezésre álló év elejétől számol.
+- Munkaerő-idősornál az explicit havi, negyedéves vagy éves kérést mindig
+  tartsd meg a time_granularity mezőben.
 - Ha csak két időpont vagy időszak különbségét kéri, az output_type
   legyen comparison.
 - Ha bontást vagy rangsort kér, az output_type legyen grouped_table.

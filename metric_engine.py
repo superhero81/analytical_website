@@ -233,6 +233,22 @@ TRAINING_TIME_SERIES_METRICS = {
     "SuccessfulTrainingCompletionCount",
 }
 
+WORKFORCE_TIME_SERIES_METRICS = {
+    "ClosingHeadcount",
+    "OpeningHeadcount",
+    "AverageHeadcount",
+    "OpeningClosingAverageHeadcount",
+    "HireCount",
+    "ExitCount",
+    "TotalTurnoverRate",
+    "VoluntaryTurnoverRate",
+    "InvoluntaryTurnoverRate",
+    "RetirementExitRate",
+    "Rolling12MonthTurnoverRate",
+    "Rolling3MonthTurnoverRate",
+}
+
+
 
 def headcount_on_date(employees, date):
     date = pd.Timestamp(date)
@@ -1265,6 +1281,141 @@ def calculate_metric(
         })
 
     return result
+
+
+def calculate_workforce_time_series(
+    metric_name,
+    employees,
+    start_date=None,
+    end_date=None,
+    granularity="automatic",
+    official_cutoff_date="2026-06-30",
+):
+    if metric_name not in WORKFORCE_TIME_SERIES_METRICS:
+        raise ValueError(
+            "Ehhez a mutatóhoz nem készíthető munkaerő-idősor."
+        )
+
+    data = employees.copy()
+    data["StartDate"] = pd.to_datetime(
+        data["StartDate"], errors="coerce"
+    )
+    data["ExitDate"] = pd.to_datetime(
+        data["ExitDate"], errors="coerce"
+    )
+
+    cutoff = pd.Timestamp(official_cutoff_date)
+    if end_date is None:
+        end_date = cutoff
+    else:
+        end_date = min(pd.Timestamp(end_date), cutoff)
+
+    if start_date is None:
+        earliest_start = data["StartDate"].dropna().min()
+        if pd.isna(earliest_start):
+            raise ValueError("Nincs érvényes belépési dátum az idősorhoz.")
+        start_date = pd.Timestamp(
+            year=earliest_start.year, month=1, day=1
+        )
+    else:
+        start_date = pd.Timestamp(start_date)
+
+    if start_date > end_date:
+        raise ValueError(
+            "A kezdődátum nem lehet későbbi a záródátumnál."
+        )
+
+    if granularity == "automatic":
+        month_count = (
+            (end_date.year - start_date.year) * 12
+            + end_date.month - start_date.month + 1
+        )
+        if month_count <= 12:
+            granularity = "month"
+        elif month_count <= 36:
+            granularity = "quarter"
+        else:
+            granularity = "year"
+
+    frequency = {
+        "month": "M",
+        "quarter": "Q",
+        "year": "Y",
+    }.get(granularity)
+    if frequency is None:
+        raise ValueError(
+            "A munkaerő-idősor gyakorisága havi, negyedéves vagy éves lehet."
+        )
+
+    periods = pd.period_range(
+        start=start_date,
+        end=end_date,
+        freq=frequency,
+    )
+
+    records = []
+    for period in periods:
+        period_start = max(
+            period.start_time.normalize(), start_date
+        )
+        period_end = min(
+            period.end_time.normalize(), end_date
+        )
+        if period_start > period_end:
+            continue
+
+        population_count = _eligible_employee_count(
+            data, period_start, period_end
+        )
+        if population_count < 4:
+            continue
+
+        result = calculate_metric(
+            metric_name,
+            data,
+            period_start,
+            period_end,
+        )
+
+        if granularity == "month":
+            period_label = f"{period_start.year}-{period_start.month:02d}"
+        elif granularity == "quarter":
+            quarter = ((period_start.month - 1) // 3) + 1
+            period_label = f"{period_start.year} Q{quarter}"
+        else:
+            period_label = str(period_start.year)
+            if (
+                period_start.year == end_date.year
+                and period_end < pd.Timestamp(
+                    year=end_date.year, month=12, day=31
+                )
+            ):
+                period_label += " (részév)"
+
+        records.append({
+            "PeriodStart": period_start,
+            "PeriodEnd": period_end,
+            "PeriodLabel": period_label,
+            "Value": result["value"],
+            "PopulationCount": population_count,
+        })
+
+    if not records:
+        raise ValueError(
+            "Nincs megjeleníthető, legalább 4 főt tartalmazó munkaerő-idősor."
+        )
+
+    metric = get_metric(metric_name)
+    return {
+        "metric_name": metric_name,
+        "label": metric["label"],
+        "unit": metric["unit"],
+        "granularity": granularity,
+        "records": records,
+        "start_date": records[0]["PeriodStart"].date().isoformat(),
+        "end_date": records[-1]["PeriodEnd"].date().isoformat(),
+    }
+
 
 
 def calculate_engagement_time_series(
