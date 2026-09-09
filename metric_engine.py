@@ -37,6 +37,9 @@ SUPPORTED_METRICS = {
     "PooledAverageSatisfactionIndex",
     "PooledAverageWorkLifeBalanceIndex",
     "PooledCompositeEngagementIndex",
+    "LastEngagementIndexByEmploymentStatus",
+    "LastSatisfactionIndexByEmploymentStatus",
+    "LastWorkLifeBalanceIndexByEmploymentStatus",
     "TrainingParticipationRate",
     "TrainingCompletionRate",
     "SuccessfulTrainingCoverage",
@@ -111,6 +114,12 @@ CHANGE_INDEX_FIELDS = {
     "EngagementIndexChange": "EngagementScore",
     "SatisfactionIndexChange": "SatisfactionScore",
     "WorkLifeBalanceIndexChange": "WorkLifeBalanceScore",
+}
+
+LAST_INDEX_BY_STATUS_FIELDS = {
+    "LastEngagementIndexByEmploymentStatus": "EngagementScore",
+    "LastSatisfactionIndexByEmploymentStatus": "SatisfactionScore",
+    "LastWorkLifeBalanceIndexByEmploymentStatus": "WorkLifeBalanceScore",
 }
 
 TRAINING_SCORE_FIELDS = {
@@ -551,6 +560,105 @@ def _rate(numerator, denominator):
     )
 
 
+def calculate_last_index_by_employment_status(
+    metric_name,
+    employees,
+    engagement,
+    reference_date,
+):
+    if metric_name not in LAST_INDEX_BY_STATUS_FIELDS:
+        raise ValueError("Nem támogatott utolsó válaszos mutató.")
+    if engagement is None:
+        raise ValueError("Az elemzéshez engagement-adat szükséges.")
+
+    reference_date = pd.Timestamp(reference_date)
+    employee_data = employees.copy()
+    employee_data["StartDate"] = pd.to_datetime(
+        employee_data["StartDate"], errors="coerce"
+    )
+    employee_data["ExitDate"] = pd.to_datetime(
+        employee_data["ExitDate"], errors="coerce"
+    )
+    employee_data = employee_data[
+        employee_data["StartDate"] <= reference_date
+    ].copy()
+    employee_data["Csoport"] = "Referencia-időpontban állományban lévők"
+    exited_mask = (
+        employee_data["ExitDate"].notna()
+        & (employee_data["ExitDate"] <= reference_date)
+    )
+    employee_data.loc[
+        exited_mask, "Csoport"
+    ] = "Referencia-időpontig kilépők"
+
+    score_field = LAST_INDEX_BY_STATUS_FIELDS[metric_name]
+    responses = engagement.copy()
+    responses["SurveyDate"] = pd.to_datetime(
+        responses["SurveyDate"], errors="coerce"
+    )
+    responses = responses[
+        responses[score_field].notna()
+        & responses["SurveyDate"].notna()
+        & (responses["SurveyDate"] <= reference_date)
+    ]
+    responses = responses.merge(
+        employee_data[["EmpID", "ExitDate", "Csoport"]],
+        on="EmpID",
+        how="inner",
+    )
+    valid_before_exit = (
+        responses["ExitDate"].isna()
+        | (responses["ExitDate"] > reference_date)
+        | (responses["SurveyDate"] < responses["ExitDate"])
+    )
+    responses = responses[valid_before_exit].copy()
+    responses = responses.sort_values(
+        ["EmpID", "SurveyDate", "SurveyLaunchDate"]
+    ).drop_duplicates("EmpID", keep="last")
+    responses["Index"] = (responses[score_field] - 1) * 25
+
+    eligible_counts = employee_data.groupby("Csoport")[
+        "EmpID"
+    ].nunique()
+    records = []
+    group_order = [
+        "Referencia-időpontig kilépők",
+        "Referencia-időpontban állományban lévők",
+    ]
+    for group_name in group_order:
+        group_responses = responses[
+            responses["Csoport"] == group_name
+        ]
+        eligible_count = int(eligible_counts.get(group_name, 0))
+        response_count = int(group_responses["EmpID"].nunique())
+        if response_count < 4:
+            continue
+        records.append({
+            "Csoport": group_name,
+            "Érték": float(group_responses["Index"].mean()),
+            "Válaszadók": response_count,
+            "Jogosultak": eligible_count,
+            "Lefedettség": _rate(response_count, eligible_count),
+            "Legkorábbi felhasznált válasz": (
+                group_responses["SurveyDate"].min().date().isoformat()
+            ),
+            "Legutóbbi felhasznált válasz": (
+                group_responses["SurveyDate"].max().date().isoformat()
+            ),
+        })
+    if not records:
+        raise ValueError(
+            "Nincs megjeleníthető, legalább 4 válaszadót tartalmazó csoport."
+        )
+    return {
+        "metric_name": metric_name,
+        "label": get_metric(metric_name)["label"],
+        "unit": "indexpont a 0–100-as skálán",
+        "reference_date": reference_date.date().isoformat(),
+        "records": records,
+    }
+
+
 def calculate_metric(
     metric_name,
     employees,
@@ -828,6 +936,26 @@ def calculate_metric(
         value = _score_to_index(score)
         unique_employee_count = pooled["EmpID"].nunique()
         wave_count = pooled["SurveyWaveID"].nunique()
+
+    elif metric_name in LAST_INDEX_BY_STATUS_FIELDS:
+        if end_date is None:
+            raise ValueError(
+                "Az utolsó válaszos összehasonlításhoz referencia-időpont szükséges."
+            )
+        status_result = calculate_last_index_by_employment_status(
+            metric_name,
+            employees,
+            engagement,
+            end_date,
+        )
+        value = {
+            record["Csoport"]: record["Érték"]
+            for record in status_result["records"]
+        }
+        valid_response_count = sum(
+            record["Válaszadók"]
+            for record in status_result["records"]
+        )
 
     elif metric_name == "PooledCompositeEngagementIndex":
         pooled = _waves_in_period(

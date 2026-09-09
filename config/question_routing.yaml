@@ -152,6 +152,8 @@ routing_rules:
       - "Mennyire elégedettek?"
       - "Milyen a munka-magánélet egyensúlya?"
       - "Mekkora az összesített engagement-index?"
+      - "Mi volt a kilépők és a nem kilépők utolsó elégedettsége?"
+      - "Hasonlítsd össze a kilépők és az állományban lévők legutolsó válaszát."
 
     source_datasets:
       - "engagement"
@@ -162,6 +164,9 @@ routing_rules:
       satisfaction: "AverageSatisfactionIndex"
       work_life_balance: "AverageWorkLifeBalanceIndex"
       combined_or_overall: "CompositeEngagementIndex"
+      last_engagement_by_employment_status: "LastEngagementIndexByEmploymentStatus"
+      last_satisfaction_by_employment_status: "LastSatisfactionIndexByEmploymentStatus"
+      last_work_life_balance_by_employment_status: "LastWorkLifeBalanceIndexByEmploymentStatus"
 
     raw_score_metrics:
       engagement: "AverageEngagementScore"
@@ -174,6 +179,18 @@ routing_rules:
 
     wave_rule: >-
       Megadott hullám hiányában a legutolsó elérhető hullámot kell használni.
+
+    last_response_status_rule: >-
+      Ha a kérdés a kilépők és a nem kilépők munkavállalónkénti utolsó
+      válaszát hasonlítja össze, a csoportokat a referencia-időpont szerint
+      kell képezni. A később kilépők az adott időpontban még az állományban
+      lévők közé tartoznak. Kilépőknél csak a kilépés előtti, másoknál a
+      referencia-időpontig adott legutolsó érvényes válasz használható.
+
+    display_rule: >-
+      A két foglalkoztatási csoport egy-egy összesített értékének
+      összehasonlítása alapértelmezetten táblázatban jelenjen meg.
+      Diagram csak a felhasználó kifejezett kérésére készüljön.
 
     documentation_status: "confirmed"
 

@@ -283,6 +283,7 @@ class QuestionPlan(BaseModel):
     ] = "automatic"
     chart_type: Literal[
         "automatic",
+        "table",
         "line",
         "bar",
         "pie",
@@ -429,6 +430,19 @@ Szabályok:
 - A „felmondók és nem felmondók” összehasonlításánál ne használd az
   all_employees csoportot: a két egymást kizáró kimeneti csoportot add vissza.
 - A „felmondott” vagy „felmondók” önkéntes kilépést jelent, nem minden kilépést.
+- A „kilépő” minden ExitDate értékkel rendelkező kilépési kategóriát jelent;
+  nem azonos a kizárólag önkéntesen felmondókkal.
+- Ha a kérdés a kilépők és a nem kilépők munkavállalónkénti utolsó
+  engagement-, elégedettségi vagy work–life balance válaszát hasonlítja össze,
+  használd rendre a LastEngagementIndexByEmploymentStatus,
+  LastSatisfactionIndexByEmploymentStatus vagy
+  LastWorkLifeBalanceIndexByEmploymentStatus mutatót. Az output_type comparison,
+  a comparison_groups és groupings lista üres legyen.
+- Ennél az elemzésnél az end_date a referencia-időpont. Ha nincs megadva,
+  legyen 2026-06-30. A később kilépők a referencia-időpontban még az
+  állományban lévők csoportjába tartoznak.
+- Az „utolsó válasz” kilépőknél az ExitDate előtti legutolsó érvényes válasz,
+  az akkor állományban lévőknél a referencia-időpontig adott legutolsó válasz.
 - Ha a kilépés utáni követési időtáv hiányzik, kérj pontosítást.
 - Ha nincs ilyen kimeneti csoport-összehasonlítás, a comparison_groups legyen üres.
 - Ha a kérdés időbeli alakulásra, trendre vagy teljes idősorra kérdez,
@@ -437,6 +451,12 @@ Szabályok:
   legyen comparison.
 - Ha bontást vagy rangsort kér, az output_type legyen grouped_table.
 - Egyetlen összesített eredménynél az output_type legyen single_value.
+- Ha a kérdés kifejezetten táblázatot kér vagy azt mondja, hogy diagram nem
+  szükséges, a chart_type legyen table.
+- Két összesített csoportérték egyszerű összehasonlításánál a chart_type
+  alapértelmezetten table legyen. Ha a felhasználó kifejezetten diagramot,
+  grafikont vagy ábrát kér, válassz megfelelő diagramtípust, például bar értéket.
+- Idősoros kérdésnél a diagram az alapértelmezett; table csak kifejezett kérésre legyen.
 - Egy adott időpont munkavállalói összetételénél a ClosingHeadcount mutatót,
   a kért demográfiai vagy szervezeti grouping mezőt és a pie chart_type értéket használd.
 - A munkavállalói összetétel időbeli változásánál a ClosingHeadcount mutatót,

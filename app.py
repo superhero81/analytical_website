@@ -2310,40 +2310,47 @@ if st.button(
                             status_data = pd.DataFrame(
                                 status_result["records"]
                             )
-                            status_chart = (
-                                alt.Chart(status_data)
-                                .mark_bar()
-                                .encode(
-                                    x=alt.X(
-                                        "Csoport:N",
-                                        title=None,
-                                        sort=[
-                                            "Referencia-időpontig kilépők",
-                                            "Referencia-időpontban állományban lévők",
-                                        ],
-                                        axis=alt.Axis(labelAngle=0),
-                                    ),
-                                    y=alt.Y(
-                                        "Érték:Q",
-                                        title="Indexpont a 0–100-as skálán",
-                                        scale=alt.Scale(domain=[0, 100]),
-                                    ),
-                                    color=alt.Color(
-                                        "Csoport:N",
-                                        legend=None,
-                                    ),
-                                    tooltip=[
-                                        alt.Tooltip("Csoport:N", title="Csoport"),
-                                        alt.Tooltip("Érték:Q", title="Index", format=".1f"),
-                                        alt.Tooltip("Válaszadók:Q", format=",.0f"),
-                                        alt.Tooltip("Jogosultak:Q", format=",.0f"),
-                                        alt.Tooltip("Lefedettség:Q", title="Lefedettség (%)", format=".1f"),
-                                    ],
-                                )
-                                .properties(height=350)
-                            )
                             st.success(f"**{status_result['label']}**")
-                            st.altair_chart(status_chart, width="stretch")
+                            if question_plan.chart_type not in {
+                                "automatic",
+                                "table",
+                            }:
+                                status_chart = (
+                                    alt.Chart(status_data)
+                                    .mark_bar()
+                                    .encode(
+                                        x=alt.X(
+                                            "Csoport:N",
+                                            title=None,
+                                            sort=[
+                                                "Referencia-időpontig kilépők",
+                                                "Referencia-időpontban állományban lévők",
+                                            ],
+                                            axis=alt.Axis(labelAngle=0),
+                                        ),
+                                        y=alt.Y(
+                                            "Érték:Q",
+                                            title="Indexpont a 0–100-as skálán",
+                                            scale=alt.Scale(domain=[0, 100]),
+                                        ),
+                                        color=alt.Color(
+                                            "Csoport:N",
+                                            legend=None,
+                                        ),
+                                        tooltip=[
+                                            alt.Tooltip("Csoport:N", title="Csoport"),
+                                            alt.Tooltip("Érték:Q", title="Index", format=".1f"),
+                                            alt.Tooltip("Válaszadók:Q", format=",.0f"),
+                                            alt.Tooltip("Jogosultak:Q", format=",.0f"),
+                                            alt.Tooltip("Lefedettség:Q", title="Lefedettség (%)", format=".1f"),
+                                        ],
+                                    )
+                                    .properties(height=350)
+                                )
+                                st.altair_chart(
+                                    status_chart,
+                                    width="stretch",
+                                )
                             st.dataframe(
                                 status_data,
                                 hide_index=True,
@@ -2475,10 +2482,11 @@ if st.button(
                             st.success(
                                 "**A kért mutatók időbeli alakulása**"
                             )
-                            render_combined_time_series(
-                                time_series_data,
-                                question_plan.chart_layout,
-                            )
+                            if question_plan.chart_type != "table":
+                                render_combined_time_series(
+                                    time_series_data,
+                                    question_plan.chart_layout,
+                                )
                             with st.expander("Idősoros adatok"):
                                 table_columns = [
                                     column for column in [
@@ -2894,10 +2902,11 @@ if st.button(
                                 f"**{group_metric_result['label']} "
                                 f"– összehasonlítás**"
                             )
-                            st.altair_chart(
-                                comparison_chart,
-                                width="stretch"
-                            )
+                            if question_plan.chart_type != "table":
+                                st.altair_chart(
+                                    comparison_chart,
+                                    width="stretch"
+                                )
                             st.dataframe(
                                 comparison_data,
                                 hide_index=True,

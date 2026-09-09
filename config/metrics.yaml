@@ -4345,3 +4345,69 @@ metrics:
       - "A Completed státusz nem feltétlenül jelent sikeres vizsgát."
 
     documentation_status: "confirmed"
+
+  - name: "LastSatisfactionIndexByEmploymentStatus"
+    label: "Legutolsó elégedettségi index foglalkoztatási státusz szerint"
+    group: "engagement"
+    description: >-
+      A referencia-időpontig kilépők és az akkor állományban lévők
+      munkavállalónkénti legutolsó érvényes elégedettségi válaszából
+      számított átlagos index.
+    source_datasets: ["employee", "engagement"]
+    required_fields:
+      - {dataset: "employee", field: "EmpID", expected_type: "integer"}
+      - {dataset: "employee", field: "StartDate", expected_type: "date"}
+      - {dataset: "employee", field: "ExitDate", expected_type: "date_or_null"}
+      - {dataset: "engagement", field: "SurveyDate", expected_type: "date"}
+      - {dataset: "engagement", field: "SatisfactionScore", expected_type: "integer_or_null"}
+    formula: >-
+      Munkavállalónként a referencia-időpontig elérhető legutolsó
+      SatisfactionScore kiválasztása; kilépőknél csak az ExitDate előtti
+      válasz használható. Az egyéni (SatisfactionScore - 1) * 25 indexek
+      átlaga külön a referencia-időpontig kilépőkre és az akkor állományban lévőkre.
+    denominator: "A csoportban megfelelő utolsó válasszal rendelkező egyedi EmpID-k száma."
+    unit: "indexpont a 0–100-as skálán"
+    time_reference: "A felhasználó által megadott referencia-időpont; ennek hiányában 2026-06-30."
+    missing_value_handling: "A megfelelő elégedettségi válasszal nem rendelkező munkavállaló kimarad; a lefedettséget közölni kell."
+    minimum_group_size: 4
+    limitations:
+      - "A két csoport legutolsó válaszai eltérő időpontokból származhatnak."
+      - "A mutató nem azonos felmérési hullámban mért keresztmetszeti különbség."
+    documentation_status: "confirmed"
+
+  - name: "LastEngagementIndexByEmploymentStatus"
+    label: "Legutolsó elkötelezettségi index foglalkoztatási státusz szerint"
+    group: "engagement"
+    description: >-
+      A referencia-időpontig kilépők és az akkor állományban lévők
+      munkavállalónkénti legutolsó érvényes engagement-válaszából számított átlagos index.
+    source_datasets: ["employee", "engagement"]
+    formula: >-
+      Munkavállalónként a referencia-időpontig elérhető legutolsó
+      EngagementScore kiválasztása; kilépőknél csak az ExitDate előtti válasz
+      használható, majd az (EngagementScore - 1) * 25 indexek csoportátlaga.
+    denominator: "A csoportban megfelelő utolsó válasszal rendelkező egyedi EmpID-k száma."
+    unit: "indexpont a 0–100-as skálán"
+    time_reference: "A felhasználó által megadott referencia-időpont; ennek hiányában 2026-06-30."
+    minimum_group_size: 4
+    limitations: ["A csoportok legutolsó válaszai eltérő időpontokból származhatnak."]
+    documentation_status: "confirmed"
+
+  - name: "LastWorkLifeBalanceIndexByEmploymentStatus"
+    label: "Legutolsó work–life balance index foglalkoztatási státusz szerint"
+    group: "engagement"
+    description: >-
+      A referencia-időpontig kilépők és az akkor állományban lévők
+      munkavállalónkénti legutolsó érvényes work–life balance válaszából
+      számított átlagos index.
+    source_datasets: ["employee", "engagement"]
+    formula: >-
+      Munkavállalónként a referencia-időpontig elérhető legutolsó
+      WorkLifeBalanceScore kiválasztása; kilépőknél csak az ExitDate előtti
+      válasz használható, majd a (WorkLifeBalanceScore - 1) * 25 indexek csoportátlaga.
+    denominator: "A csoportban megfelelő utolsó válasszal rendelkező egyedi EmpID-k száma."
+    unit: "indexpont a 0–100-as skálán"
+    time_reference: "A felhasználó által megadott referencia-időpont; ennek hiányában 2026-06-30."
+    minimum_group_size: 4
+    limitations: ["A csoportok legutolsó válaszai eltérő időpontokból származhatnak."]
+    documentation_status: "confirmed"
